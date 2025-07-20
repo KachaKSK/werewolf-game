@@ -35,6 +35,7 @@ import {
     hideRenameRoomModal, cancelRenameRoom as uiCancelRenameRoom,
     prefillRenameRoomInput
 } from './ui/modals.js';
+import { GEM_DATA } from './config/constants.js'; // Import GEM_DATA
 
 // Global State Variables
 let supabase = null;
@@ -195,7 +196,7 @@ joinRoomTabBtn.addEventListener('click', () => showTab('join-room'));
 
 createRoomBtn.addEventListener('click', async () => {
     // Pass currentRoomData (even if null initially) to createRoom for initial setup
-    const newId = await createRoom(supabase, userName, userId, localId, newRoomNameInput.value); // Removed currentRoomData as it's not used in createRoom service
+    const newId = await createRoom(supabase, newRoomNameInput.value, userId); // Removed currentRoomData and localId as they are not used in createRoom service
     if (newId) {
         listenToRoom(newId);
         showView('my-room');
@@ -204,7 +205,7 @@ createRoomBtn.addEventListener('click', async () => {
 
 joinRoomBtn.addEventListener('click', async () => {
     // Pass currentRoomData to joinRoom
-    const joined = await joinRoom(supabase, userName, userId, localId, roomIdInput.value, currentRoomData);
+    const joined = await joinRoom(supabase, roomIdInput.value, { id: userId, name: userName, "local-id": localId }); // Pass player object
     if (joined) {
         listenToRoom(roomIdInput.value);
         showView('my-room');
@@ -213,28 +214,30 @@ joinRoomBtn.addEventListener('click', async () => {
 
 leaveRoomBtn.addEventListener('click', async () => {
     // Pass current isHost to leaveRoom
-    await leaveRoom(supabase, currentRoomId, userId, localId, isHost);
+    await leaveRoom(supabase, currentRoomId, userId); // Removed localId and isHost as they are not used in leaveRoom
     // State reset and view change handled within leaveRoom and updateRoomUI
 });
 
 incrementCounterBtn.addEventListener('click', () => {
     console.log("[DEBUG] Increment Counter button clicked.");
-    incrementCounter(supabase, currentRoomId, localId, userName, currentRoomData);
+    incrementCounter(currentRoomId, 1); // Removed supabase, localId, userName, currentRoomData as they are not used in incrementCounter
 });
 generateRandomBtn.addEventListener('click', () => {
     console.log("[DEBUG] Generate Random button clicked.");
-    generateRandomValue(supabase, currentRoomId, localId, userName, currentRoomData);
+    generateRandomValue(currentRoomId); // Removed supabase, localId, userName, currentRoomData as they are not used in generateRandomValue
 });
 
 renameRoomTitleBtn.addEventListener('click', () => {
-    if (renameRoomTitle(currentRoomData, isHost)) {
-        prefillRenameRoomInput();
+    if (isHost) { // Only host can rename
+        prefillRenameRoomInput(currentRoomData.name); // Pass current room name
         renameRoomModal.classList.add('active');
+    } else {
+        showMessage("Only the host can rename the room.", 'error');
     }
 });
 
 confirmRenameBtn.addEventListener('click', async () => {
-    const success = await serviceConfirmRenameRoom(supabase, currentRoomId, currentRoomData, renameRoomInput.value);
+    const success = await serviceConfirmRenameRoom(currentRoomId, renameRoomInput.value); // Removed supabase and currentRoomData
     if (success) {
         hideRenameRoomModal();
     }
@@ -251,7 +254,7 @@ playerListDiv.addEventListener('click', (event) => {
         const playerIdToKick = event.target.dataset.playerId;
         if (playerIdToKick) {
             // Pass current isHost to kickPlayer
-            kickPlayer(supabase, currentRoomId, userId, isHost, playerIdToKick);
+            kickPlayer(currentRoomId, playerIdToKick); // Removed supabase, userId, isHost
         }
     }
 });
@@ -268,7 +271,7 @@ roleListDiv.addEventListener('click', (event) => {
         console.log(`[DEBUG] Role control clicked: Role: ${roleName}, Action: ${action}`);
 
         if (roleName && action) {
-            const roleTemplate = ROLE_TEMPLATES.find(r => r.name === roleName);
+            const roleTemplate = GEM_DATA.ROLE_TEMPLATES.find(r => r.name === roleName); // Use GEM_DATA.ROLE_TEMPLATES
             if (roleTemplate && roleTemplate.gem === "None" && action === 'toggleDisable') {
                 showMessage(`Roles with gem "None" cannot be disabled/enabled.`, 'info');
                 return;
@@ -276,11 +279,11 @@ roleListDiv.addEventListener('click', (event) => {
 
             // Role counter buttons are now editable by all players, so no !isHost check here
             if (action === 'increment') {
-                updateRoleAmount(supabase, currentRoomId, currentRoomData, roleName, 1);
+                updateRoleAmount(currentRoomId, roleName, 1); // Removed supabase, currentRoomData
             } else if (action === 'decrement') {
-                updateRoleAmount(supabase, currentRoomId, currentRoomData, roleName, -1);
+                updateRoleAmount(currentRoomId, roleName, -1); // Removed supabase, currentRoomData
             } else if (action === 'toggleDisable') {
-                toggleRoleDisabled(supabase, currentRoomId, currentRoomData, roleName);
+                toggleRoleDisabled(currentRoomId, roleName, !roleTemplate.disabled); // Removed supabase, currentRoomData, pass new disabled state
             }
         }
     } else if (!currentRoomData) {
@@ -298,11 +301,11 @@ gemSettingsList.addEventListener('click', (event) => {
     // Only allow interaction if currentRoomData is available AND current user is host
     if (currentRoomData && isHost && gemName && action) {
         if (action === 'incrementGem') {
-            updateGemCount(supabase, currentRoomId, currentRoomData, gemName, 1);
+            updateGemCount(currentRoomId, gemName, 1); // Removed supabase, currentRoomData
         } else if (action === 'decrementGem') {
-            updateGemCount(supabase, currentRoomId, currentRoomData, gemName, -1);
+            updateGemCount(currentRoomId, gemName, -1); // Removed supabase, currentRoomData
         } else if (action === 'removeGem') {
-            removeGemFromSettings(supabase, currentRoomId, currentRoomData, gemName);
+            removeGemFromSettings(currentRoomId, gemName); // Removed supabase, currentRoomData
         }
     } else if (currentRoomData && !isHost && (action === 'incrementGem' || action === 'decrementGem' || action === 'removeGem' || action === 'removeGem')) {
         // Inform non-hosts that they cannot edit this section
@@ -317,7 +320,7 @@ addGemButton.addEventListener('click', () => {
     console.log("[DEBUG] Add Gem button clicked. IsHost:", isHost);
     // Only allow host to open add gem modal
     if (currentRoomData && isHost) {
-        uiShowAddGemModal(currentRoomData, (gemName) => serviceAddGemToSettings(supabase, currentRoomId, currentRoomData, gemName));
+        uiShowAddGemModal(currentRoomData, (gemName) => serviceAddGemToSettings(currentRoomId, gemName)); // Removed supabase, currentRoomData
     } else if (currentRoomData && !isHost) {
         showMessage("Only the host can add new gem categories.", 'error');
     } else {
@@ -334,7 +337,11 @@ addGemModal.addEventListener('click', (event) => {
 
 startGameBtn.addEventListener('click', () => {
     console.log("[DEBUG] Start Game button clicked. IsHost:", isHost);
-    startGame(supabase, currentRoomId, isHost, currentRoomData);
+    if (isHost) { // Only host can start the game
+        startGame(currentRoomId, userId); // Removed supabase and isHost
+    } else {
+        showMessage("Only the host can start the game.", 'error');
+    }
 });
 
 viewAllRolesBtn.addEventListener('click', () => uiShowRolesOverlay(currentRoomData, renderAllRoleCardsToOverlay));
