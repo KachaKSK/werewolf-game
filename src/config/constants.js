@@ -768,16 +768,6 @@ export const ROLE_TEMPLATES = [
         abilities: undefined,
         conditions: undefined,
     },
-    { // Duplicate Tanner, keeping as per provided data
-        name: "Tanner",
-        "thai-name": "ผู้สิ้นหวัง",
-        description: "Wins only if they are lynched by the villagers.",
-        "variant-count": 1, // Default to 1
-        gem: "Specials",
-        "rough-gem": "Townfolks",
-        abilities: undefined,
-        conditions: undefined,
-    },
     {
         name: "Doppelgänger",
         "thai-name": "ตัวแทน",
