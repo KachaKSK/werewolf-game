@@ -121,7 +121,7 @@ export function getRoleImagePath(roleName, currentRoomData) {
     }
 
     // Fallback to default path if not found in map or no room data
-    // Using .jpeg extension based on user's clarification and error logs
+    // Using .jpeg extension as per user's clarification
     return `${ROLE_IMAGE_BASE_PATH}${formattedRoleName}-v-1.jpeg`; // Changed to .jpeg
 }
 
