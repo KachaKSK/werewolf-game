@@ -10,7 +10,7 @@ import {
     detailedOverlayRoleName, detailedOverlayThaiName, detailedOverlayDescription,
     detailedOverlayGemsContainer, addGemButton, gemSettingsList
 } from '../config/dom-elements.js';
-// ROLE_TEMPLATES and GEM_DATA are imported here as they are used by other rendering functions.
+// ROLE_TEMPLATES is imported here and should be available throughout this module.
 import { GEM_DATA, ROLE_TEMPLATES } from '../config/constants.js';
 import { getBase64Image, hexToRgba, getRoleImagePath, getRoleTemplate } from '../utils/helpers.js';
 import { showDetailedRoleOverlay } from './modals.js'; // Import showDetailedRoleOverlay
@@ -26,9 +26,9 @@ let isRolePoolTabOpen = false; // State for role pool tab
  * @param {function} kickPlayerCallback - Callback function for kicking players.
  * @param {Array<Object>} currentPlayerRoles - Array of current player's roles.
  * @param {function} renderPlayerRoleCardsCallback - Callback to render player role cards.
- * @param {function} updateRoleAmountCallback - Callback to update role amount. (No longer directly used for rendering counters, but kept for consistency if other parts still pass it)
- * @param {function} toggleRoleDisabledCallback - Callback to toggle role disabled status. (No longer directly used for rendering counters, but kept for consistency if other parts still pass it)
- * @param {function} removeGemFromSettingsCallback - Callback to remove gem from settings. (No longer directly used for rendering counters, but kept for consistency if other parts still pass it)
+ * @param {function} updateRoleAmountCallback - Callback to update role amount.
+ * @param {function} toggleRoleDisabledCallback - Callback to toggle role disabled status.
+ * @param {function} removeGemFromSettingsCallback - Callback to remove gem from settings.
  */
 export function updateRoomUI(roomData, localId, userId, kickPlayerCallback, currentPlayerRoles, renderPlayerRoleCardsCallback, updateRoleAmountCallback, toggleRoleDisabledCallback, removeGemFromSettingsCallback) {
     console.log('[DEBUG] [updateRoomUI] Updating UI with room data:', roomData);
@@ -76,10 +76,13 @@ export function updateRoomUI(roomData, localId, userId, kickPlayerCallback, curr
     // Update shared random value
     sharedRandomDisplay.textContent = roomData.game_data?.shared_random_value || 'N/A';
 
-    // Removed the role counter rendering logic and related addGemButton visibility.
-    // The gemSettingsList will now remain empty or display its default content if no other logic populates it.
-    gemSettingsList.innerHTML = '<p class="text-center text-gray-500">Role settings are managed elsewhere.</p>';
-    addGemButton.classList.add('hidden'); // Ensure add gem button is hidden as its functionality is removed from UI
+    // Update role list (if game_data and role_settings exist)
+    if (roomData.game_data && roomData.game_data.role_settings) {
+        renderGemSettings(roomData.game_data.role_settings, isHost, updateRoleAmountCallback, toggleRoleDisabledCallback, removeGemFromSettingsCallback);
+    } else {
+        gemSettingsList.innerHTML = '<p class="text-center text-gray-500">No role settings configured.</p>';
+        addGemButton.classList.add('hidden'); // Hide if no game data
+    }
 
     // Render player's roles
     renderPlayerRoleCardsCallback(currentPlayerRoles, roomData.game_data?.role_image_map || {});
@@ -232,7 +235,141 @@ export function updatePlayerCardPositions() {
     }
 }
 
-// The renderGemSettings function has been removed as requested.
+/**
+ * Renders the gem settings (role counters) in the UI.
+ * @param {Array<Object>} roleSettings - The array of role settings from game_data.
+ * @param {boolean} isHost - True if the current user is the host, false otherwise.
+ * @param {function} updateRoleAmountCallback - Callback to update role amount in DB.
+ * @param {function} toggleRoleDisabledCallback - Callback to toggle role disabled status in DB.
+ * @param {function} removeGemFromSettingsCallback - Callback to remove gem from settings in DB.
+ */
+export async function renderGemSettings(roleSettings, isHost, updateRoleAmountCallback, toggleRoleDisabledCallback, removeGemFromSettingsCallback) {
+    console.log('[DEBUG] [renderGemSettings] Rendering gem settings:', roleSettings);
+    // Confirm ROLE_TEMPLATES is available in this scope
+    console.log('[DEBUG] [renderGemSettings] ROLE_TEMPLATES (in render.js scope):', ROLE_TEMPLATES);
+    console.log('[DEBUG] [renderGemSettings] getRoleTemplate (function reference):', getRoleTemplate);
+
+    gemSettingsList.innerHTML = ''; // Clear existing settings
+
+    if (!roleSettings || roleSettings.length === 0) {
+        gemSettingsList.innerHTML = '<p class="text-center text-gray-500">No role categories added yet.</p>';
+    } else {
+        // Sort role settings by gem name for consistent display
+        roleSettings.sort((a, b) => a.gem.localeCompare(b.gem));
+
+        for (const setting of roleSettings) {
+            const gemName = setting.gem;
+            const roleName = setting.role;
+            const amount = setting.amount;
+            const isDisabled = setting.isDisabled;
+            const gemData = GEM_DATA[gemName];
+            // Call getRoleTemplate without passing ROLE_TEMPLATES, as it's imported in helpers.js
+            const roleTemplate = getRoleTemplate(roleName);
+
+            if (!gemData || !roleTemplate) {
+                console.warn(`[WARNING] Missing gem data for ${gemName} or role template for ${roleName}. Skipping.`);
+                continue;
+            }
+
+            const gemItem = document.createElement('div');
+            gemItem.className = `gem-setting-item flex items-center p-2 rounded-lg shadow-sm mb-2 relative ${isDisabled ? 'bg-gray-300 opacity-60' : 'bg-white'}`;
+            gemItem.style.borderColor = gemData.color; // Use gem color for border
+            gemItem.style.borderWidth = '2px';
+            gemItem.style.borderStyle = 'solid';
+
+            // Role Image
+            const roleImage = document.createElement('img');
+            const imageUrl = roleTemplate['chosen-image-url'] || getRoleImagePath(roleName); // Use chosen-image-url if available
+            roleImage.src = await getBase64Image(imageUrl);
+            roleImage.alt = roleName;
+            roleImage.className = 'w-10 h-10 rounded-full object-cover mr-3 border-2';
+            roleImage.style.borderColor = gemData.color;
+            gemItem.appendChild(roleImage);
+
+            // Role Name and Gem Name
+            const textContainer = document.createElement('div');
+            textContainer.className = 'flex-grow';
+            textContainer.innerHTML = `
+                <h4 class="font-semibold text-gray-800">${roleName}</h4>
+                <p class="text-xs text-gray-600">${gemName}</p>
+            `;
+            gemItem.appendChild(textContainer);
+
+            // Counter Area
+            const counterArea = document.createElement('div');
+            counterArea.className = 'flex items-center space-x-2 ml-4';
+
+            // Minus button
+            const minusButton = document.createElement('button');
+            minusButton.className = 'gem-setting-button bg-red-500 hover:bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-lg font-bold';
+            minusButton.textContent = '-';
+            minusButton.dataset.gemName = gemName;
+            minusButton.dataset.roleName = roleName;
+            minusButton.dataset.action = 'decrementGem';
+            minusButton.style.pointerEvents = 'auto'; // Ensure it's clickable
+            minusButton.addEventListener('click', () => {
+                console.log(`[DEBUG] Minus button clicked for role: ${roleName}`);
+                updateRoleAmountCallback(roleName, -1);
+            });
+            counterArea.appendChild(minusButton);
+
+            // Amount display
+            const amountSpan = document.createElement('span');
+            amountSpan.className = 'text-lg font-bold text-gray-900 min-w-[20px] text-center';
+            amountSpan.textContent = amount;
+            amountSpan.style.pointerEvents = 'none'; // Amount display should not be clickable
+            counterArea.appendChild(amountSpan);
+
+            // Plus button
+            const plusButton = document.createElement('button');
+            plusButton.className = 'gem-setting-button bg-green-500 hover:bg-green-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-lg font-bold';
+            plusButton.textContent = '+';
+            plusButton.dataset.gemName = gemName;
+            plusButton.dataset.roleName = roleName;
+            plusButton.dataset.action = 'incrementGem';
+            plusButton.style.pointerEvents = 'auto'; // Ensure it's clickable
+            plusButton.addEventListener('click', () => {
+                console.log(`[DEBUG] Plus button clicked for role: ${roleName}`);
+                updateRoleAmountCallback(roleName, 1);
+            });
+            counterArea.appendChild(plusButton);
+
+            gemItem.appendChild(counterArea);
+
+            // Toggle Disabled Button (only for host)
+            if (isHost) {
+                const toggleDisableButton = document.createElement('button');
+                toggleDisableButton.className = `ml-2 px-2 py-1 rounded-md text-sm ${isDisabled ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-yellow-500 hover:bg-yellow-600 text-white'}`;
+                toggleDisableButton.textContent = isDisabled ? 'Enable' : 'Disable';
+                toggleDisableButton.style.pointerEvents = 'auto'; // Ensure clickable
+                toggleDisableButton.addEventListener('click', () => toggleRoleDisabledCallback(roleName));
+                gemItem.appendChild(toggleDisableButton);
+
+                // Remove Button (only for host)
+                const removeButton = document.createElement('button');
+                removeButton.className = 'ml-2 px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm';
+                removeButton.textContent = 'Remove';
+                removeButton.style.pointerEvents = 'auto'; // Ensure clickable
+                removeButton.addEventListener('click', () => removeGemFromSettingsCallback(roleName));
+                gemItem.appendChild(removeButton);
+            }
+
+            gemSettingsList.appendChild(gemItem);
+        }
+    }
+
+    // Hide/show add gem button based on host status
+    if (isHost) {
+        addGemButton.classList.remove('hidden');
+    } else {
+        addGemButton.classList.add('hidden');
+    }
+    // Ensure addGemButton is always appended to gemSettingsList, its visibility is controlled by its class
+    if (!gemSettingsList.contains(addGemButton)) {
+        gemSettingsList.appendChild(addGemButton);
+    }
+    console.log('[DEBUG] [renderGemSettings] Finished gem settings rendering.');
+}
 
 /**
  * Toggles the visibility of the role pool tab.
