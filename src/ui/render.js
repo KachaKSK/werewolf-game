@@ -206,6 +206,8 @@ export async function displayRoleImageStatic(imgElement, role, currentRoomData, 
     const nobodyRole = ROLE_TEMPLATES.find(t => t.name === "Nobody");
     const nobodyImageUrl = nobodyRole ? getRoleImagePath(nobodyRole.name, currentRoomData) : 'https://placehold.co/100x100/cccccc/000000?text=No+Image'; // Fallback if Nobody role not found
 
+    console.log(`[DEBUG] Attempting to load primary image for ${role.name}: ${primaryImageUrl}`); // Added debug log
+
     try {
         const base64Image = await getBase64Image(primaryImageUrl);
         imgElement.src = base64Image;
