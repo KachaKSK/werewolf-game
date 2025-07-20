@@ -62,7 +62,7 @@ export const ROLE_TEMPLATES = [
         name: "Seer",
         "thai-name": "ผู้พยากรณ์",
         description: "Each night, chooses a player to learn their alignment which is Townfolks/Werewolfs.",
-        "variant-count": 4, // Default to 1
+        "variant-count": 1, // Default to 1
         gem: "Townfolks",
         "rough-gem": "Townfolks",
         abilities: [
@@ -650,7 +650,7 @@ export const ROLE_TEMPLATES = [
         name: "Werewolf",
         "thai-name": "มนุษย์หมาป่า",
         description: "Each night, collectively choose one player to eliminate.",
-        "variant-count": 10, // Default to 1
+        "variant-count": 1, // Default to 1
         gem: "Werewolfs",
         "rough-gem": "Werewolfs",
         abilities: undefined,
@@ -759,6 +759,16 @@ export const ROLE_TEMPLATES = [
     },
     //Neutrals
     {
+        name: "Tanner",
+        "thai-name": "ผู้สิ้นหวัง",
+        description: "Wins only if they are lynched by the villagers.",
+        "variant-count": 1, // Default to 1
+        gem: "Specials",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    { // Duplicate Tanner, keeping as per provided data
         name: "Tanner",
         "thai-name": "ผู้สิ้นหวัง",
         description: "Wins only if they are lynched by the villagers.",

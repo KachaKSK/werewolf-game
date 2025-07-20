@@ -1,31 +1,46 @@
 // src/services/room-service.js
-// Handles interactions with the Supabase database for room and game state management.
+// Contains functions for interacting with Supabase for room management.
 
-import { ROLE_TEMPLATES, ROOM_BACKGROUNDS, ROLE_IMAGE_BASE_PATH, GEM_DATA } from '../config/constants.js';
-import { showMessage, getRoleImagePath } from '../utils/helpers.js'; // Corrected import
-
-let supabase = null; // Will be set by main.js
+import { showMessage, generateRoomId, getRoleTemplate, standardizeRoleName, getRoleImagePath, shuffleArray } from '../utils/helpers.js';
+import { ROLE_TEMPLATES, ROOM_BACKGROUNDS, ROLE_IMAGE_BASE_PATH } from '../config/constants.js';
 
 /**
- * Initializes the Supabase client for this service.
- * @param {object} client - The Supabase client instance.
+ * Generates the center_role_pool array based on current role settings.
+ * Each role object in the pool will have a 'chosen-image-url' derived from the synchronized map.
+ * @param {Array<Object>} roleSettings - The current role settings from game_data.
+ * @param {Object} roleImageMap - The synchronized map of role names to their chosen image URLs.
+ * @returns {Array<Object>} The generated center_role_pool.
  */
-export function setSupabaseClient(client) {
-    supabase = client;
+export function generateCenterRolePool(roleSettings, roleImageMap) {
+    const pool = [];
+    roleSettings.forEach(setting => {
+        if (!setting.isDisabled) { // Only add if not disabled
+            const roleTemplate = getRoleTemplate(setting.role);
+            if (roleTemplate) {
+                for (let i = 0; i < setting.amount; i++) {
+                    // Deep copy the role template
+                    const roleInstance = JSON.parse(JSON.stringify(roleTemplate));
+                    // Assign a chosen image URL using the provided roleImageMap
+                    // Fallback to getRoleImagePath if not found in map (should ideally be in map)
+                    roleInstance["chosen-image-url"] = roleImageMap[roleTemplate.name] || getRoleImagePath(roleTemplate.name, { game_data: { role_image_map: roleImageMap } });
+                    pool.push(roleInstance);
+                }
+            }
+        }
+    });
+    // Shuffle the pool to randomize card order
+    shuffleArray(pool);
+    return pool;
 }
 
 /**
- * Fetches the current data for a specific room.
- * @param {object} supabase - The Supabase client.
+ * Fetches room data from Supabase.
+ * @param {object} supabase - The Supabase client instance.
  * @param {string} roomId - The ID of the room to fetch.
- * @returns {Promise<object|null>} The room data or null if not found/error.
+ * @returns {Promise<object|null>} The room data or null if not found.
  */
 export async function fetchRoomData(supabase, roomId) {
-    if (!supabase) {
-        console.error("[ERROR] Supabase client not initialized in room-service.fetchRoomData.");
-        showMessage("Database connection error. Please refresh.", 'error');
-        return null;
-    }
+    console.log(`[DEBUG] [fetchRoomData] Fetching data for room: ${roomId}`);
     try {
         const { data, error } = await supabase
             .from('Rooms')
@@ -33,460 +48,466 @@ export async function fetchRoomData(supabase, roomId) {
             .eq('id', roomId)
             .single();
 
-        if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found
+        if (error && error.code === 'PGRST116') { // No rows found
+            console.log(`[DEBUG] [fetchRoomData] Room ${roomId} not found.`);
+            return null;
+        }
+        if (error) {
             throw error;
         }
-
-        if (data) {
-            // Ensure players and game_data are always objects/arrays
-            data.players = data.players || [];
-            data.game_data = data.game_data || {};
-            data.game_data.current_day = data.game_data.current_day || 0; // Default to 0
-            data.game_data.game_state = data.game_data.game_state || 'lobby'; // Default to 'lobby'
-            data.game_data.role_settings = data.game_data.role_settings || []; // Default role settings
-            data.game_data.gem_settings = data.game_data.gem_settings || []; // Default gem settings
-            data.game_data.role_image_map = data.game_data.role_image_map || {}; // Default role image map
-            data.game_data.players_roles_assigned = data.game_data.players_roles_assigned || false; // Default to false
-            data.game_data.center_role_pool = data.game_data.center_role_pool || []; // Default center role pool
-            data.game_data.players_ready = data.game_data.players_ready || []; // Default players ready array
-
-            // If gem_settings is empty, initialize it with all gems
-            if (data.game_data.gem_settings.length === 0) {
-                console.log("[DEBUG] Initializing gem settings as empty.");
-                data.game_data.gem_settings = Object.keys(GEM_DATA).filter(gemName => gemName !== "None").map(gemName => ({
-                    gem: gemName,
-                    count: 0
-                }));
-            }
-
-            // If role_settings is empty, initialize it from ROLE_TEMPLATES
-            if (data.game_data.role_settings.length === 0) {
-                console.log("[DEBUG] Initializing role settings as empty.");
-                data.game_data.role_settings = ROLE_TEMPLATES.map(role => ({
-                    role: role.name,
-                    count: role["variant-count"] || 1, // Use variant-count from template or default to 1
-                    disabled: role.isPrimarilyDisabled || false // Use isPrimarilyDisabled from template
-                }));
-            }
-
-        }
-
-        console.log("[DEBUG] Fetched room data:", data);
+        console.log(`[DEBUG] [fetchRoomData] Received data for room ${roomId}:`, data);
         return data;
     } catch (error) {
-        console.error("[ERROR] Error fetching room data:", error);
-        showMessage(`Error fetching room: ${error.message}`, 'error');
+        console.error("[ERROR] [fetchRoomData] Error fetching room data:", error);
+        showMessage(`Error fetching room data: ${error.message}`, 'error');
         return null;
     }
 }
 
 /**
- * Creates a new room in the database.
- * @param {object} supabase - The Supabase client.
- * @param {string} roomName - The name of the room.
- * @param {string} hostId - The ID of the host player.
- * @returns {Promise<object|null>} The created room data or null on error.
+ * Handles creating a new room.
+ * @param {object} supabase - The Supabase client instance.
+ * @param {string} userName - The name of the creating player.
+ * @param {string} userId - The short ID of the creating player.
+ * @param {string} localId - The full UUID of the creating player.
+ * @param {string} newRoomNameInputVal - The desired name for the new room.
+ * @returns {Promise<string|null>} The new room ID if successful, otherwise null.
  */
-export async function createRoom(supabase, roomName, hostId) {
-    if (!supabase) {
-        console.error("[ERROR] Supabase client not initialized in room-service.createRoom.");
-        showMessage("Database connection error. Please refresh.", 'error');
+export async function createRoom(supabase, userName, userId, localId, newRoomNameInputVal) {
+    console.log('[DEBUG] [createRoom] Attempting to create room.');
+    if (!localId || !userName || !userId) {
+        showMessage("Please set your name first.", 'error');
         return null;
     }
+
+    const newRoomId = generateRoomId();
+    const roomNameToCreate = newRoomNameInputVal.trim() || "WolfVille Village"; // Use placeholder if input is empty
+
+    const initialRoleSettings = ROLE_TEMPLATES.map(role => ({
+        role: role.name,
+        amount: role["default-amount"] !== undefined ? role["default-amount"] : 1,
+        isDisabled: role.isPrimarilyDisabled || false
+    }));
+    console.log('[DEBUG] [createRoom] Initial Role Settings:', initialRoleSettings);
+
+    const initialGemIncludedSettings = [
+        { gem: "Townfolks", count: 3 },
+        { gem: "Specials", count: 1 },
+        { gem: "Werewolfs", count: 2 }
+    ];
+    console.log('[DEBUG] [createRoom] Initial Gem Included Settings:', initialGemIncludedSettings);
+
+    // NEW: Generate a consistent role_image_map for this room
+    const roleImageMap = {};
+    ROLE_TEMPLATES.forEach(role => {
+        const standardizedName = standardizeRoleName(role.name);
+        const count = role['variant-count'] || 1;
+        const randomVariant = Math.floor(Math.random() * count) + 1;
+        roleImageMap[role.name] = `${ROLE_IMAGE_BASE_PATH}${standardizedName}-v-${randomVariant}.jpeg`;
+    });
+    console.log('[DEBUG] [createRoom] Generated Role Image Map:', roleImageMap);
+
+    // Generate initial center_role_pool based on these settings and the new roleImageMap
+    const initialCenterRolePool = generateCenterRolePool(initialRoleSettings, roleImageMap);
+    console.log('[DEBUG] [createRoom] Initial Center Role Pool:', initialCenterRolePool);
+
+    const nobodyRoleTemplate = getRoleTemplate("Nobody");
+    const initialPlayerRoles = nobodyRoleTemplate ? [{
+        ...JSON.parse(JSON.stringify(nobodyRoleTemplate)),
+        "chosen-image-url": roleImageMap[nobodyRoleTemplate.name] || getRoleImagePath(nobodyRoleTemplate.name, { game_data: { role_image_map: roleImageMap } })
+    }] : [];
+
+    const player = {
+        name: userName,
+        uid: userId,
+        "local-id": localId,
+        status: "Alive",
+        "rendered-image": undefined,
+        roles: initialPlayerRoles
+    };
+    const randomBackgroundUrl = ROOM_BACKGROUNDS[Math.floor(Math.random() * ROOM_BACKGROUNDS.length)];
+
     try {
-        const shortRoomId = Math.random().toString(36).substring(2, 8).toUpperCase(); // 6-char ID
-        const initialPlayers = [{ id: hostId, name: 'Host', is_host: true, role: null, is_alive: true }];
-
-        // Initialize gem settings with all gems, default count 0
-        const initialGemSettings = Object.keys(GEM_DATA).filter(gemName => gemName !== "None").map(gemName => ({
-            gem: gemName,
-            count: 0 // Default gem count to 0
-        }));
-
-        // Initialize role settings from ROLE_TEMPLATES
-        const initialRoleSettings = ROLE_TEMPLATES.map(role => ({
-            role: role.name,
-            count: role["variant-count"] || 1, // Use variant-count from template or default to 1
-            disabled: role.isPrimarilyDisabled || false // Use isPrimarilyDisabled from template
-        }));
+        const existingRoom = await fetchRoomData(supabase, newRoomId);
+        if (existingRoom) {
+            showMessage(`Room ${newRoomId} already exists. Trying another ID.`, 'info');
+            return createRoom(supabase, userName, userId, localId, newRoomNameInputVal); // Recursively try again
+        }
 
         const { data, error } = await supabase
             .from('Rooms')
             .insert([
                 {
-                    id: shortRoomId,
-                    name: roomName,
-                    host_id: hostId,
-                    players: initialPlayers,
-                    room_background_url: ROOM_BACKGROUNDS[Math.floor(Math.random() * ROOM_BACKGROUNDS.length)], // Random background
+                    id: newRoomId,
+                    host_id: localId,
+                    players: [player],
                     game_data: {
-                        current_day: 0, // 0 for lobby, 1+ for game days
-                        game_state: "lobby", // lobby, night, day
-                        shared_counter: 0,
-                        shared_random: 0,
-                        role_settings: initialRoleSettings, // Initialize from constants
-                        gem_settings: initialGemSettings, // Initialize from constants
-                        players_roles_assigned: false,
-                        center_role_pool: [],
-                        role_image_map: {}, // Will be populated with synchronized image URLs
-                        players_ready: [] // Array of player IDs who are ready to start
+                        counter: 0,
+                        randomValue: 'N/A',
+                        lastUpdatedBy: userName,
+                        background_image_url: randomBackgroundUrl,
+                        roomName: roomNameToCreate,
+                        role_settings: initialRoleSettings,
+                        center_role_pool: initialCenterRolePool,
+                        gem_included_settings: initialGemIncludedSettings,
+                        role_image_map: roleImageMap
                     }
                 }
-            ])
-            .select()
-            .single();
+            ]);
 
         if (error) {
             throw error;
         }
 
-        showMessage(`Room '${roomName}' created with ID: ${data.id}`, 'success');
-        console.log("[DEBUG] Room created:", data);
-        return data;
+        showMessage(`Room ${newRoomId} created successfully!`, 'success');
+        console.log(`[DEBUG] [createRoom] Room ${newRoomId} created.`);
+        return newRoomId;
     } catch (error) {
-        console.error("[ERROR] Error creating room:", error);
+        console.error("[ERROR] [createRoom] Error creating room:", error);
         showMessage(`Error creating room: ${error.message}`, 'error');
         return null;
     }
 }
 
 /**
- * Joins an existing room.
- * @param {object} supabase - The Supabase client.
- * @param {string} roomId - The ID of the room to join.
- * @param {object} player - The player object { id, name }.
- * @returns {Promise<object|null>} The joined room data or null on error.
+ * Handles joining an existing room.
+ * @param {object} supabase - The Supabase client instance.
+ * @param {string} userName - The name of the joining player.
+ * @param {string} userId - The short ID of the joining player.
+ * @param {string} localId - The full UUID of the joining player.
+ * @param {string} roomIdInputVal - The ID of the room to join.
+ * @param {object} currentRoomData - The current room data (needed for role image path).
+ * @returns {Promise<boolean>} True if joined successfully, false otherwise.
  */
-export async function joinRoom(supabase, roomId, player) {
-    if (!supabase) {
-        console.error("[ERROR] Supabase client not initialized in room-service.joinRoom.");
-        showMessage("Database connection error. Please refresh.", 'error');
-        return null;
+export async function joinRoom(supabase, userName, userId, localId, roomIdInputVal, currentRoomData) {
+    console.log('[DEBUG] [joinRoom] Attempting to join room.');
+    if (!localId || !userName || !userId) {
+        showMessage("Please set your name first.", 'error');
+        return false;
     }
+
+    const roomId = roomIdInputVal.trim();
+    if (!roomId) {
+        showMessage("Please enter a Room ID.", 'error');
+        return false;
+    }
+
+    const nobodyRoleTemplate = getRoleTemplate("Nobody");
+    const initialPlayerRoles = nobodyRoleTemplate ? [{
+        ...JSON.parse(JSON.stringify(nobodyRoleTemplate)),
+        "chosen-image-url": getRoleImagePath(nobodyRoleTemplate.name, currentRoomData)
+    }] : [];
+
+    const player = {
+        name: userName,
+        uid: userId,
+        "local-id": localId,
+        status: "Alive",
+        "rendered-image": undefined,
+        roles: initialPlayerRoles
+    };
+
     try {
-        // Fetch current room data to get existing players
-        const { data: roomData, error: fetchError } = await supabase
-            .from('Rooms')
-            .select('players')
-            .eq('id', roomId)
-            .single();
+        const room = await fetchRoomData(supabase, roomId);
+        if (room) {
+            const { data, error } = await supabase.rpc('add_player_to_room', {
+                p_room_id: roomId,
+                p_player_data: player
+            });
 
-        if (fetchError) {
-            throw fetchError;
+            if (error) {
+                if (error.message.includes('already in room')) {
+                    showMessage(`You are already in room ${roomId}.`, 'info');
+                } else {
+                    throw error;
+                }
+            } else {
+                showMessage(`Joined room ${roomId} successfully!`, 'success');
+            }
+            console.log(`[DEBUG] [joinRoom] Room ${roomId} joined.`);
+            return true;
+        } else {
+            showMessage(`Room ${roomId} does not exist.`, 'error');
+            console.log(`[DEBUG] [joinRoom] Room ${roomId} does not exist.`);
+            return false;
+        }
+    } catch (error) {
+        console.error("[ERROR] [joinRoom] Error joining room:", error);
+        showMessage(`Error joining room: ${error.message}`, 'error');
+        return false;
+    }
+}
+
+/**
+ * Handles leaving the current room.
+ * @param {object} supabase - The Supabase client instance.
+ * @param {string} currentRoomId - The ID of the room to leave.
+ * @param {string} userId - The short ID of the leaving player.
+ * @param {string} localId - The full UUID of the leaving player.
+ * @param {boolean} isHost - True if the current user is the host.
+ * @returns {Promise<void>}
+ */
+export async function leaveRoom(supabase, currentRoomId, userId, localId, isHost) {
+    console.log('[DEBUG] [leaveRoom] Attempting to leave room.');
+    if (!currentRoomId || !localId) {
+        showMessage("You are not in a room.", 'info');
+        return;
+    }
+
+    const roomIdToLeave = currentRoomId;
+
+    try {
+        const room = await fetchRoomData(supabase, roomIdToLeave);
+        if (!room) {
+            console.warn(`[DEBUG] [leaveRoom] Room ${roomIdToLeave} not found when trying to leave.`);
+            return;
         }
 
-        const existingPlayers = roomData.players || [];
-
-        // Check if player already in room
-        if (existingPlayers.some(p => p.id === player.id)) {
-            showMessage("You are already in this room.", 'info');
-            return roomData; // Return existing room data
+        if (isHost && room.players && room.players.length > 1) {
+            const remainingPlayers = room.players.filter(p => p["local-id"] !== localId);
+            if (remainingPlayers.length > 0) {
+                const newHost = remainingPlayers[0];
+                console.log(`[DEBUG] [leaveRoom] Promoting new host: ${newHost.name} (Local ID: ${newHost["local-id"]})`);
+                const { error: promoteError } = await supabase.rpc('promote_new_host', {
+                    p_room_id: roomIdToLeave,
+                    p_new_host_id: newHost["local-id"]
+                });
+                if (promoteError) {
+                    console.error("[ERROR] [leaveRoom] Error promoting new host:", promoteError);
+                    showMessage(`Error promoting new host: ${promoteError.message}`, 'error');
+                } else {
+                    showMessage(`You left the room. ${newHost.name} is the new host.`, 'info');
+                }
+            }
+        } else if (isHost && room.players.length <= 1) {
+            showMessage("You left the room. The room might be dissolved as you were the last player.", 'info');
+        } else {
+            showMessage(`You left room ${roomIdToLeave}.`, 'success');
         }
 
-        const updatedPlayers = [...existingPlayers, { ...player, is_host: false, role: null, is_alive: true }];
+        const { data, error } = await supabase.rpc('remove_player_from_room', {
+            p_room_id: roomIdToLeave,
+            p_player_id: userId
+        });
+
+        if (error) {
+            throw error;
+        }
+    } catch (error) {
+        console.error("[ERROR] [leaveRoom] Error leaving room:", error);
+        showMessage(`Error leaving room: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * Kicks a player from the current room.
+ * Only callable by the host.
+ * @param {object} supabase - The Supabase client instance.
+ * @param {string} currentRoomId - The ID of the current room.
+ * @param {string} userId - The short ID of the current user.
+ * @param {boolean} isHost - True if the current user is the host.
+ * @param {string} playerIdToKick - The ID of the player to kick (this is the 6-digit short ID).
+ */
+export async function kickPlayer(supabase, currentRoomId, userId, isHost, playerIdToKick) {
+    if (!currentRoomId || !isHost) {
+        showMessage("Only the host can kick players.", 'error');
+        return;
+    }
+    if (playerIdToKick === userId) {
+        showMessage("You cannot kick yourself.", 'error');
+        return;
+    }
+
+    console.log(`[DEBUG] [kickPlayer] Attempting to kick player ${playerIdToKick} from room ${currentRoomId}`);
+    try {
+        const { data, error } = await supabase.rpc('remove_player_from_room', {
+            p_room_id: currentRoomId,
+            p_player_id: playerIdToKick
+        });
+
+        if (error) {
+            throw error;
+        }
+        showMessage(`Player ${playerIdToKick}... kicked successfully.`, 'success');
+    }
+    catch (error) {
+        console.error("[ERROR] [kickPlayer] Error kicking player:", error);
+        showMessage(`Error kicking player: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * Renames the current room's title.
+ * @param {object} currentRoomData - The current room data.
+ * @param {boolean} isHost - True if the current user is the host.
+ * @returns {boolean} True if modal should be shown, false otherwise.
+ */
+export function renameRoomTitle(currentRoomData, isHost) {
+    if (!currentRoomData || !isHost) {
+        showMessage("Only the host can rename the room.", 'error');
+        return false;
+    }
+    console.log('[DEBUG] [renameRoomTitle] Showing rename modal.');
+    return true; // Indicate that the modal should be shown by the caller
+}
+
+/**
+ * Confirms the room renaming from the modal.
+ * @param {object} supabase - The Supabase client instance.
+ * @param {string} currentRoomId - The ID of the current room.
+ * @param {object} currentRoomData - The current room data.
+ * @param {string} newRoomNameInputVal - The new room name from the input.
+ * @returns {Promise<boolean>} True if renamed successfully, false otherwise.
+ */
+export async function confirmRenameRoom(supabase, currentRoomId, currentRoomData, newRoomNameInputVal) {
+    const newRoomName = newRoomNameInputVal.trim();
+    if (newRoomName === null || newRoomName === "") {
+        showMessage("Room name cannot be empty.", 'info');
+        return false;
+    }
+
+    try {
+        if (!currentRoomData) {
+            showMessage("Room not found for renaming.", 'error');
+            return false;
+        }
 
         const { data, error } = await supabase
             .from('Rooms')
-            .update({ players: updatedPlayers })
-            .eq('id', roomId)
-            .select()
-            .single();
+            .update({ game_data: { ...currentRoomData.game_data, roomName: newRoomName } })
+            .eq('id', currentRoomId);
 
         if (error) {
             throw error;
         }
-
-        showMessage(`${player.name} joined room ${roomId}`, 'success');
-        console.log("[DEBUG] Player joined room:", data);
-        return data;
-    } catch (error) {
-        console.error("[ERROR] Error joining room:", error);
-        showMessage(`Error joining room: ${error.message}`, 'error');
-        return null;
-    }
-}
-
-/**
- * Leaves the current room.
- * @param {object} supabase - The Supabase client.
- * @param {string} roomId - The ID of the room to leave.
- * @param {string} playerId - The ID of the player leaving.
- * @returns {Promise<boolean>} True if successful, false otherwise.
- */
-export async function leaveRoom(supabase, roomId, playerId) {
-    if (!supabase) {
-        console.error("[ERROR] Supabase client not initialized in room-service.leaveRoom.");
-        showMessage("Database connection error. Please refresh.", 'error');
-        return false;
-    }
-    try {
-        const { data: roomData, error: fetchError } = await supabase
-            .from('Rooms')
-            .select('players, host_id')
-            .eq('id', roomId)
-            .single();
-
-        if (fetchError) {
-            throw fetchError;
-        }
-
-        let players = roomData.players || [];
-        const isHostLeaving = roomData.host_id === playerId;
-
-        // Filter out the leaving player
-        let updatedPlayers = players.filter(p => p.id !== playerId);
-
-        // If host is leaving, assign new host if other players exist
-        if (isHostLeaving && updatedPlayers.length > 0) {
-            updatedPlayers[0].is_host = true;
-            console.log(`[DEBUG] New host assigned: ${updatedPlayers[0].id}`);
-        }
-
-        const { error } = await supabase
-            .from('Rooms')
-            .update({
-                players: updatedPlayers,
-                host_id: isHostLeaving && updatedPlayers.length > 0 ? updatedPlayers[0].id : (isHostLeaving && updatedPlayers.length === 0 ? null : roomData.host_id)
-            })
-            .eq('id', roomId);
-
-        if (error) {
-            throw error;
-        }
-
-        // If no players left, delete the room
-        if (updatedPlayers.length === 0) {
-            const { error: deleteError } = await supabase
-                .from('Rooms')
-                .delete()
-                .eq('id', roomId);
-            if (deleteError) {
-                console.error("[ERROR] Error deleting empty room:", deleteError);
-                showMessage(`Error cleaning up room: ${deleteError.message}`, 'error');
-            } else {
-                console.log(`[DEBUG] Room ${roomId} deleted as it is now empty.`);
-            }
-        }
-
-        showMessage("Left room.", 'info');
-        console.log("[DEBUG] Player left room.");
-        return true;
-    }
-    catch (error) {
-        console.error("[ERROR] Error leaving room:", error);
-        showMessage(`Error leaving room: ${error.message}`, 'error');
-        return false;
-    }
-}
-
-/**
- * Kicks a player from the room.
- * @param {string} roomId - The ID of the room.
- * @param {string} playerIdToKick - The ID of the player to kick.
- * @returns {Promise<boolean>} True if successful, false otherwise.
- */
-export async function kickPlayer(roomId, playerIdToKick) {
-    if (!supabase) {
-        console.error("[ERROR] Supabase client not initialized in room-service.kickPlayer.");
-        showMessage("Database connection error. Please refresh.", 'error');
-        return false;
-    }
-    try {
-        const { data: roomData, error: fetchError } = await supabase
-            .from('Rooms')
-            .select('players, host_id')
-            .eq('id', roomId)
-            .single();
-
-        if (fetchError) {
-            throw fetchError;
-        }
-
-        let players = roomData.players || [];
-        const updatedPlayers = players.filter(p => p.id !== playerIdToKick);
-
-        const { error } = await supabase
-            .from('Rooms')
-            .update({ players: updatedPlayers })
-            .eq('id', roomId);
-
-        if (error) {
-            throw error;
-        }
-
-        showMessage("Player kicked.", 'info');
-        console.log(`[DEBUG] Player ${playerIdToKick} kicked from room ${roomId}.`);
+        showMessage(`Room title updated to "${newRoomName}"!`, 'success');
+        console.log(`[DEBUG] [confirmRenameRoom] Room renamed to: ${newRoomName}`);
         return true;
     } catch (error) {
-        console.error("[ERROR] Error kicking player:", error);
-        showMessage(`Error kicking player: ${error.message}`, 'error');
+        console.error("[ERROR] [confirmRenameRoom] Error renaming room title:", error);
+        showMessage(`Error renaming room title: ${error.message}`, 'error');
         return false;
     }
 }
 
 /**
- * Renames the room title.
- * @param {string} roomId - The ID of the room.
- * @param {string} newName - The new name for the room.
- * @returns {Promise<boolean>} True if successful, false otherwise.
+ * Increments the shared counter in the current room.
+ * @param {object} supabase - The Supabase client instance.
+ * @param {string} currentRoomId - The ID of the current room.
+ * @param {string} localId - The full UUID of the current user.
+ * @param {string} userName - The name of the current user.
+ * @param {object} currentRoomData - The current room data.
+ * @returns {Promise<void>}
  */
-export async function renameRoomTitle(roomId, newName) {
-    if (!supabase) {
-        console.error("[ERROR] Supabase client not initialized in room-service.renameRoomTitle.");
-        showMessage("Database connection error. Please refresh.", 'error');
-        return false;
+export async function incrementCounter(supabase, currentRoomId, localId, userName, currentRoomData) {
+    if (!currentRoomId || !localId) {
+        showMessage("You must be in a room to interact with the game state.", 'error');
+        return;
     }
+
     try {
-        const { error } = await supabase
+        if (!currentRoomData) {
+            showMessage("Room not found for counter update.", 'error');
+            return;
+        }
+
+        const currentCounter = currentRoomData.game_data?.counter || 0;
+        const newCounter = currentCounter + 1;
+
+        const { data, error } = await supabase
             .from('Rooms')
-            .update({ name: newName })
-            .eq('id', roomId);
+            .update({ game_data: { ...currentRoomData.game_data, counter: newCounter, lastUpdatedBy: userName } })
+            .eq('id', currentRoomId);
 
         if (error) {
             throw error;
         }
-
-        showMessage(`Room renamed to '${newName}'.`, 'success');
-        console.log(`[DEBUG] Room ${roomId} renamed to ${newName}.`);
-        return true;
+        showMessage("Counter incremented!", 'success');
+        console.log(`[DEBUG] [incrementCounter] Counter incremented to: ${newCounter}`);
     } catch (error) {
-        console.error("[ERROR] Error renaming room:", error);
-        showMessage(`Error renaming room: ${error.message}`, 'error');
-        return false;
+        console.error("[ERROR] [incrementCounter] Error incrementing counter:", error);
+        showMessage(`Error incrementing counter: ${error.message}`, 'error');
     }
 }
 
 /**
- * Confirms room renaming (this function mostly serves as a wrapper for renameRoomTitle now).
- * @param {string} roomId - The ID of the room.
- * @param {string} newName - The new name for the room.
- * @returns {Promise<boolean>} True if successful, false otherwise.
+ * Generates and updates a random value in the current room.
+ * @param {object} supabase - The Supabase client instance.
+ * @param {string} currentRoomId - The ID of the current room.
+ * @param {string} localId - The full UUID of the current user.
+ * @param {string} userName - The name of the current user.
+ * @param {object} currentRoomData - The current room data.
+ * @returns {Promise<void>}
  */
-export async function confirmRenameRoom(roomId, newName) {
-    console.log(`[DEBUG] [confirmRenameRoom] Attempting to rename room ${roomId} to ${newName}`);
-    return await renameRoomTitle(roomId, newName);
+export async function generateRandomValue(supabase, currentRoomId, localId, userName, currentRoomData) {
+    if (!currentRoomId || !localId) {
+        showMessage("You must be in a room to interact with the game state.", 'error');
+        return;
+    }
+
+    try {
+        if (!currentRoomData) {
+            showMessage("Room not found for random value update.", 'error');
+            return;
+        }
+
+        const newRandomValue = Math.floor(Math.random() * 10000);
+
+        const { data, error } = await supabase
+            .from('Rooms')
+            .update({ game_data: { ...currentRoomData.game_data, randomValue: newRandomValue, lastUpdatedBy: userName } })
+            .eq('id', currentRoomId);
+
+        if (error) {
+            throw error;
+        }
+        showMessage(`Random value generated: ${newRandomValue}!`, 'success');
+        console.log(`[DEBUG] [generateRandomValue] Random value generated: ${newRandomValue}`);
+    } catch (error) {
+        console.error("[ERROR] [generateRandomValue] Error generating random value:", error);
+        showMessage(`Error generating random value: ${error.message}`, 'error');
+    }
 }
 
 /**
- * Increments the shared counter in the room's game data.
- * @param {string} roomId - The ID of the room.
- * @param {number} incrementBy - The amount to increment the counter by.
+ * Updates the role settings and the center_role_pool in the database.
+ * @param {object} supabase - The Supabase client instance.
+ * @param {string} currentRoomId - The ID of the current room.
+ * @param {object} currentRoomData - The current room data.
+ * @param {Array<Object>} newRoleSettings - The updated array of role settings.
+ * @param {Array<Object>} newGemIncludedSettings - The updated array of gem included settings.
  */
-export async function incrementCounter(roomId, incrementBy) {
-    if (!supabase) {
-        console.error("[ERROR] Supabase client not initialized in room-service.incrementCounter.");
-        showMessage("Database connection error. Please refresh.", 'error');
+export async function updateGameDataInDB(supabase, currentRoomId, currentRoomData, newRoleSettings, newGemIncludedSettings) {
+    if (!currentRoomId) {
+        showMessage("Not in a room to update game data.", 'error');
         return;
     }
     try {
-        const { data: roomData, error: fetchError } = await supabase
-            .from('Rooms')
-            .select('game_data')
-            .eq('id', roomId)
-            .single();
-
-        if (fetchError) {
-            throw fetchError;
+        if (!currentRoomData) {
+            showMessage("Room not found for updating game data.", 'error');
+            return;
         }
 
-        const currentCounter = roomData.game_data.shared_counter || 0;
+        const newCenterRolePool = generateCenterRolePool(newRoleSettings, currentRoomData.game_data?.role_image_map || {});
+
         const updatedGameData = {
-            ...roomData.game_data,
-            shared_counter: currentCounter + incrementBy
+            ...currentRoomData.game_data,
+            role_settings: newRoleSettings,
+            center_role_pool: newCenterRolePool,
+            gem_included_settings: newGemIncludedSettings
         };
 
-        const { error } = await supabase
+        console.log("[DEBUG] Sending updated game_data to DB:", updatedGameData);
+
+        const { data, error } = await supabase
             .from('Rooms')
             .update({ game_data: updatedGameData })
-            .eq('id', roomId);
+            .eq('id', currentRoomId);
 
         if (error) {
             throw error;
         }
-        console.log(`[DEBUG] Shared counter incremented to ${updatedGameData.shared_counter}.`);
-    } catch (error) {
-        console.error("[ERROR] Error incrementing counter:", error);
-        showMessage(`Error updating counter: ${error.message}`, 'error');
-    }
-}
-
-/**
- * Generates a new random value and updates it in the room's game data.
- * @param {string} roomId - The ID of the room.
- */
-export async function generateRandomValue(roomId) {
-    if (!supabase) {
-        console.error("[ERROR] Supabase client not initialized in room-service.generateRandomValue.");
-        showMessage("Database connection error. Please refresh.", 'error');
-        return;
-    }
-    try {
-        const { data: roomData, error: fetchError } = await supabase
-            .from('Rooms')
-            .select('game_data')
-            .eq('id', roomId)
-            .single();
-
-        if (fetchError) {
-            throw fetchError;
-        }
-
-        const newRandom = Math.floor(Math.random() * 100) + 1; // Random number between 1 and 100
-        const updatedGameData = {
-            ...roomData.game_data,
-            shared_random: newRandom
-        };
-
-        const { error } = await supabase
-            .from('Rooms')
-            .update({ game_data: updatedGameData })
-            .eq('id', roomId);
-
-        if (error) {
-            throw error;
-        }
-        console.log(`[DEBUG] Shared random value updated to ${newRandom}.`);
-    } catch (error) {
-        console.error("[ERROR] Error generating random value:", error);
-        showMessage(`Error updating random value: ${error.message}`, 'error');
-    }
-}
-
-/**
- * Updates the game_data object in the database.
- * This is a generic function to update any part of game_data.
- * @param {string} roomId - The ID of the room.
- * @param {object} updatedGameData - The new game_data object (or partial object to merge).
- */
-export async function updateGameDataInDB(roomId, updatedGameData) {
-    if (!supabase) {
-        console.error("[ERROR] Supabase client not initialized in room-service.updateGameDataInDB.");
-        showMessage("Database connection error. Please refresh.", 'error');
-        return;
-    }
-    try {
-        const { data: roomData, error: fetchError } = await supabase
-            .from('Rooms')
-            .select('game_data')
-            .eq('id', roomId)
-            .single();
-
-        if (fetchError) {
-            throw fetchError;
-        }
-
-        const currentGameData = roomData.game_data || {};
-        const mergedGameData = { ...currentGameData, ...updatedGameData };
-
-        const { error } = await supabase
-            .from('Rooms')
-            .update({ game_data: mergedGameData })
-            .eq('id', roomId);
-
-        if (error) {
-            throw error;
-        }
-        console.log("[DEBUG] Game data updated successfully.", mergedGameData);
+        console.log("[DEBUG] Game data (role settings, center_role_pool, gem_included_settings) updated in DB successfully.");
     } catch (error) {
         console.error("[ERROR] Error updating game data in DB:", error);
         showMessage(`Error updating game data: ${error.message}`, 'error');
@@ -494,365 +515,231 @@ export async function updateGameDataInDB(roomId, updatedGameData) {
 }
 
 /**
- * Updates the count for a specific role in the role_settings.
- * @param {string} roomId - The ID of the room.
- * @param {string} roleName - The name of the role to update.
- * @param {number} newCount - The new count for the role.
+ * Increments or decrements the amount for a specific role.
+ * @param {object} supabase - The Supabase client instance.
+ * @param {string} currentRoomId - The ID of the current room.
+ * @param {object} currentRoomData - The current room data.
+ * @param {string} roleName - The name of the role.
+ * @param {number} change - The amount to change (e.g., 1 for increment, -1 for decrement).
  */
-export async function updateRoleAmount(roomId, roleName, newCount) {
-    if (!supabase) {
-        console.error("[ERROR] Supabase client not initialized in room-service.updateRoleAmount.");
-        showMessage("Database connection error. Please refresh.", 'error');
+export async function updateRoleAmount(supabase, currentRoomId, currentRoomData, roleName, change) {
+    if (!currentRoomData || !currentRoomData.game_data || !currentRoomData.game_data.role_settings) {
+        showMessage("Room data not available to update role amount.", 'error');
         return;
     }
-    try {
-        const { data: roomData, error: fetchError } = await supabase
-            .from('Rooms')
-            .select('game_data')
-            .eq('id', roomId)
-            .single();
 
-        if (fetchError) {
-            throw fetchError;
+    const newRoleSettings = [...currentRoomData.game_data.role_settings];
+    const roleSetting = newRoleSettings.find(s => s.role === roleName);
+
+    if (roleSetting) {
+        const newAmount = Math.max(0, roleSetting.amount + change);
+        if (roleSetting.amount !== newAmount) {
+            roleSetting.amount = newAmount;
+            await updateGameDataInDB(supabase, currentRoomId, currentRoomData, newRoleSettings, currentRoomData.game_data.gem_included_settings);
+            console.log(`[DEBUG] Role ${roleName} amount changed to ${newAmount}.`);
         }
-
-        const currentRoleSettings = roomData.game_data.role_settings || [];
-        const updatedRoleSettings = currentRoleSettings.map(setting => {
-            if (setting.role === roleName) {
-                return { ...setting, count: Math.max(0, newCount) }; // Ensure count is not negative
-            }
-            return setting;
-        });
-
-        await updateGameDataInDB(roomId, { role_settings: updatedRoleSettings });
-        console.log(`[DEBUG] Role ${roleName} count updated to ${newCount}.`);
-    } catch (error) {
-        console.error("[ERROR] Error updating role amount:", error);
-        showMessage(`Error updating role amount: ${error.message}`, 'error');
+    } else {
+        showMessage(`Role setting for ${roleName} not found.`, 'error');
     }
 }
 
 /**
- * Toggles the disabled status of a specific role in the role_settings.
- * @param {string} roomId - The ID of the room.
- * @param {string} roleName - The name of the role to toggle.
- * @param {boolean} isDisabled - The new disabled status.
+ * Toggles the isDisabled status for a specific role.
+ * @param {object} supabase - The Supabase client instance.
+ * @param {string} currentRoomId - The ID of the current room.
+ * @param {object} currentRoomData - The current room data.
+ * @param {string} roleName - The name of the role.
  */
-export async function toggleRoleDisabled(roomId, roleName, isDisabled) {
-    if (!supabase) {
-        console.error("[ERROR] Supabase client not initialized in room-service.toggleRoleDisabled.");
-        showMessage("Database connection error. Please refresh.", 'error');
+export async function toggleRoleDisabled(supabase, currentRoomId, currentRoomData, roleName) {
+    const roleTemplate = ROLE_TEMPLATES.find(r => r.name === roleName);
+    if (roleTemplate && roleTemplate.gem === "None") {
+        showMessage(`Roles with gem "None" cannot be disabled/enabled.`, 'info');
         return;
     }
-    try {
-        const { data: roomData, error: fetchError } = await supabase
-            .from('Rooms')
-            .select('game_data')
-            .eq('id', roomId)
-            .single();
 
-        if (fetchError) {
-            throw fetchError;
-        }
+    if (!currentRoomData || !currentRoomData.game_data || !currentRoomData.game_data.role_settings) {
+        showMessage("Room data not available to toggle role disable status.", 'error');
+        return;
+    }
 
-        const currentRoleSettings = roomData.game_data.role_settings || [];
-        const updatedRoleSettings = currentRoleSettings.map(setting => {
-            if (setting.role === roleName) {
-                return { ...setting, disabled: isDisabled };
-            }
-            return setting;
-        });
+    const newRoleSettings = [...currentRoomData.game_data.role_settings];
+    const roleSetting = newRoleSettings.find(s => s.role === roleName);
 
-        await updateGameDataInDB(roomId, { role_settings: updatedRoleSettings });
-        console.log(`[DEBUG] Role ${roleName} disabled status set to ${isDisabled}.`);
-    } catch (error) {
-        console.error("[ERROR] Error toggling role disabled status:", error);
-        showMessage(`Error toggling role status: ${error.message}`, 'error');
+    if (roleSetting) {
+        roleSetting.isDisabled = !roleSetting.isDisabled;
+        await updateGameDataInDB(supabase, currentRoomId, currentRoomData, newRoleSettings, currentRoomData.game_data.gem_included_settings);
+        console.log(`[DEBUG] Role ${roleName} disabled status toggled to ${roleSetting.isDisabled}.`);
+    } else {
+        showMessage(`Role setting for ${roleName} not found.`, 'error');
     }
 }
 
 /**
- * Updates the count for a specific gem in the gem_settings.
- * @param {string} roomId - The ID of the room.
- * @param {string} gemName - The name of the gem to update.
- * @param {number} newCount - The new count for the gem.
+ * Updates the count for a specific gem category.
+ * @param {object} supabase - The Supabase client instance.
+ * @param {string} currentRoomId - The ID of the current room.
+ * @param {object} currentRoomData - The current room data.
+ * @param {string} gemName - The name of the gem category.
+ * @param {number} change - The amount to change the count by (e.g., 1 or -1).
  */
-export async function updateGemCount(roomId, gemName, newCount) {
-    if (!supabase) {
-        console.error("[ERROR] Supabase client not initialized in room-service.updateGemCount.");
-        showMessage("Database connection error. Please refresh.", 'error');
+export async function updateGemCount(supabase, currentRoomId, currentRoomData, gemName, change) {
+    if (!currentRoomData || !currentRoomData.game_data || !currentRoomData.game_data.gem_included_settings) {
+        showMessage("Room data not available to update gem count.", 'error');
         return;
     }
-    try {
-        const { data: roomData, error: fetchError } = await supabase
-            .from('Rooms')
-            .select('game_data')
-            .eq('id', roomId)
-            .single();
 
-        if (fetchError) {
-            throw fetchError;
+    const newGemIncludedSettings = [...currentRoomData.game_data.gem_included_settings];
+    const gemSetting = newGemIncludedSettings.find(g => g.gem === gemName);
+
+    if (gemSetting) {
+        const newCount = Math.max(0, gemSetting.count + change);
+        if (gemSetting.count !== newCount) {
+            gemSetting.count = newCount;
+            await updateGameDataInDB(supabase, currentRoomId, currentRoomData, currentRoomData.game_data.role_settings, newGemIncludedSettings);
+            console.log(`[DEBUG] Gem ${gemName} count changed to ${newCount}.`);
         }
-
-        const currentGemSettings = roomData.game_data.gem_settings || [];
-        const updatedGemSettings = currentGemSettings.map(setting => {
-            if (setting.gem === gemName) {
-                return { ...setting, count: Math.max(0, newCount) }; // Ensure count is not negative
-            }
-            return setting;
-        });
-
-        await updateGameDataInDB(roomId, { gem_settings: updatedGemSettings });
-        console.log(`[DEBUG] Gem ${gemName} count updated to ${newCount}.`);
-    } catch (error) {
-        console.error("[ERROR] Error updating gem count:", error);
-        showMessage(`Error updating gem count: ${error.message}`, 'error');
+    } else {
+        showMessage(`Gem setting for ${gemName} not found.`, 'error');
     }
 }
 
 /**
- * Adds a gem to the gem_settings.
- * @param {string} roomId - The ID of the room.
- * @param {string} gemName - The name of the gem to add.
- * @returns {Promise<boolean>} True if successful, false otherwise.
+ * Removes a gem category from the included settings.
+ * @param {object} supabase - The Supabase client instance.
+ * @param {string} currentRoomId - The ID of the current room.
+ * @param {object} currentRoomData - The current room data.
+ * @param {string} gemName - The name of the gem category to remove.
  */
-export async function addGemToSettings(roomId, gemName) {
-    if (!supabase) {
-        console.error("[ERROR] Supabase client not initialized in room-service.addGemToSettings.");
-        showMessage("Database connection error. Please refresh.", 'error');
-        return false;
-    }
-    try {
-        const { data: roomData, error: fetchError } = await supabase
-            .from('Rooms')
-            .select('game_data')
-            .eq('id', roomId)
-            .single();
-
-        if (fetchError) {
-            throw fetchError;
-        }
-
-        const currentGemSettings = roomData.game_data.gem_settings || [];
-
-        // Check if gem already exists in settings
-        if (currentGemSettings.some(setting => setting.gem === gemName)) {
-            showMessage(`Gem '${gemName}' is already in the settings.`, 'warning');
-            return false;
-        }
-
-        const newGemSetting = {
-            gem: gemName,
-            count: 0 // Default count when added
-        };
-
-        const updatedGemSettings = [...currentGemSettings, newGemSetting];
-
-        await updateGameDataInDB(roomId, { gem_settings: updatedGemSettings });
-        showMessage(`Gem '${gemName}' added to settings.`, 'success');
-        console.log(`[DEBUG] Gem ${gemName} added to settings.`);
-        return true;
-    } catch (error) {
-        console.error("[ERROR] Error adding gem to settings:", error);
-        showMessage(`Error adding gem: ${error.message}`, 'error');
-        return false;
-    }
-}
-
-/**
- * Removes a gem from the gem_settings.
- * @param {string} roomId - The ID of the room.
- * @param {string} gemName - The name of the gem to remove.
- */
-export async function removeGemFromSettings(roomId, gemName) {
-    if (!supabase) {
-        console.error("[ERROR] Supabase client not initialized in room-service.removeGemFromSettings.");
-        showMessage("Database connection error. Please refresh.", 'error');
+export async function removeGemFromSettings(supabase, currentRoomId, currentRoomData, gemName) {
+    if (!currentRoomData || !currentRoomData.game_data || !currentRoomData.game_data.gem_included_settings) {
+        showMessage("Room data not available to remove gem.", 'error');
         return;
     }
-    try {
-        const { data: roomData, error: fetchError } = await supabase
-            .from('Rooms')
-            .select('game_data')
-            .eq('id', roomId)
-            .single();
 
-        if (fetchError) {
-            throw fetchError;
-        }
-
-        const currentGemSettings = roomData.game_data.gem_settings || [];
-        const updatedGemSettings = currentGemSettings.filter(setting => setting.gem !== gemName);
-
-        await updateGameDataInDB(roomId, { gem_settings: updatedGemSettings });
+    const newGemIncludedSettings = currentRoomData.game_data.gem_included_settings.filter(g => g.gem !== gemName);
+    if (newGemIncludedSettings.length !== currentRoomData.game_data.gem_included_settings.length) {
+        await updateGameDataInDB(supabase, currentRoomId, currentRoomData, currentRoomData.game_data.role_settings, newGemIncludedSettings);
+        showMessage(`Removed ${gemName} from roles.`, 'success');
         console.log(`[DEBUG] Gem ${gemName} removed from settings.`);
-    } catch (error) {
-        console.error("[ERROR] Error removing gem from settings:", error);
-        showMessage(`Error removing gem: ${error.message}`, 'error');
+    } else {
+        showMessage(`Gem ${gemName} not found in settings.`, 'info');
     }
 }
 
 /**
- * Starts the game, assigns roles, and updates game state.
- * @param {string} roomId - The ID of the room.
- * @param {string} currentHostId - The ID of the current host initiating the game start.
+ * Adds a selected gem category to the included settings.
+ * @param {object} supabase - The Supabase client instance.
+ * @param {string} currentRoomId - The ID of the current room.
+ * @param {object} currentRoomData - The current room data.
+ * @param {string} gemName - The name of the gem category to add.
+ */
+export async function addGemToSettings(supabase, currentRoomId, currentRoomData, gemName) {
+    if (!currentRoomData || !currentRoomData.game_data || !currentRoomData.game_data.gem_included_settings) {
+        showMessage("Room data not available to add gem.", 'error');
+        return;
+    }
+
+    const newGemIncludedSettings = [...currentRoomData.game_data.gem_included_settings];
+    const existingGem = newGemIncludedSettings.find(g => g.gem === gemName);
+
+    if (!existingGem) {
+        newGemIncludedSettings.push({ gem: gemName, count: 1 });
+        await updateGameDataInDB(supabase, currentRoomId, currentRoomData, currentRoomData.game_data.role_settings, newGemIncludedSettings);
+        showMessage(`Added ${gemName} to roles.`, 'success');
+        return true; // Indicate success for modal hiding
+    } else {
+        showMessage(`${gemName} is already in the list.`, 'info');
+        return false;
+    }
+}
+
+/**
+ * Starts the game: assigns roles to players based on gem counts.
+ * @param {object} supabase - The Supabase client instance.
+ * @param {string} currentRoomId - The ID of the current room.
+ * @param {boolean} isHost - True if the current user is the host.
+ * @param {object} currentRoomData - The current room data.
  * @returns {Promise<void>}
  */
-export async function startGame(roomId, currentHostId) {
-    if (!supabase) {
-        console.error("[ERROR] Supabase client not initialized in room-service.startGame.");
-        showMessage("Database connection error. Please refresh.", 'error');
+export async function startGame(supabase, currentRoomId, isHost, currentRoomData) {
+    if (!currentRoomId || !isHost) {
+        showMessage("Only the host can start the game.", 'error');
         return;
     }
+
+    if (!currentRoomData || !currentRoomData.players || currentRoomData.players.length === 0) {
+        showMessage("Cannot start game: No players in the room.", 'error');
+        return;
+    }
+
+    const playersInRoom = [...currentRoomData.players];
+    const gemIncludedSettings = currentRoomData.game_data?.gem_included_settings || [];
+    const roleImageMap = currentRoomData.game_data?.role_image_map || {};
+
+    let availableRolesForAssignment = [];
+
+    gemIncludedSettings.forEach(gemSetting => {
+        const gemName = gemSetting.gem;
+        const count = gemSetting.count;
+
+        const rolesOfThisGem = ROLE_TEMPLATES.filter(role =>
+            role.gem === gemName &&
+            !role.isPrimarilyDisabled
+        );
+
+        for (let i = 0; i < count; i++) {
+            if (rolesOfThisGem.length > 0) {
+                const randomIndex = Math.floor(Math.random() * rolesOfThisGem.length);
+                const chosenRoleTemplate = rolesOfThisGem[randomIndex];
+
+                const roleInstance = JSON.parse(JSON.stringify(chosenRoleTemplate));
+                roleInstance["chosen-image-url"] = roleImageMap[chosenRoleTemplate.name] || getRoleImagePath(chosenRoleTemplate.name, currentRoomData);
+
+                availableRolesForAssignment.push(roleInstance);
+            }
+        }
+    });
+
+    if (availableRolesForAssignment.length < playersInRoom.length) {
+        showMessage(`Not enough roles configured! Need ${playersInRoom.length} roles, but only have ${availableRolesForAssignment.length}. Adjust gem counts.`, 'error');
+        return;
+    }
+
+    if (availableRolesForAssignment.length > playersInRoom.length) {
+        shuffleArray(availableRolesForAssignment);
+        availableRolesForAssignment = availableRolesForAssignment.slice(0, playersInRoom.length);
+    }
+
+    shuffleArray(availableRolesForAssignment);
+    shuffleArray(playersInRoom);
+
+    const updatedPlayers = playersInRoom.map((player, index) => {
+        const assignedRole = availableRolesForAssignment[index];
+        if (assignedRole) {
+            return { ...player, roles: [assignedRole] };
+        }
+        return player;
+    });
+
+    const updatedCenterRolePool = [];
+
     try {
-        console.log("[DEBUG] [startGame] Attempting to start game...");
-
-        const { data: currentRoomData, error: fetchError } = await supabase
+        const { data, error } = await supabase
             .from('Rooms')
-            .select('players, game_data')
-            .eq('id', roomId)
-            .single();
-
-        if (fetchError) {
-            throw fetchError;
-        }
-
-        const players = currentRoomData.players || [];
-        const roleSettings = currentRoomData.game_data.role_settings || [];
-        const gemSettings = currentRoomData.game_data.gem_settings || [];
-
-        if (players.length === 0) {
-            showMessage("Cannot start game: No players in the room.", 'warning');
-            return;
-        }
-        if (currentRoomData.game_data.game_state !== 'lobby') {
-            showMessage("Game already in progress or not in lobby state.", 'warning');
-            return;
-        }
-
-        // 1. Calculate total roles needed and available roles
-        let totalRolesToAssign = 0;
-        const availableRoles = [];
-        roleSettings.forEach(setting => {
-            if (!setting.disabled && setting.count > 0) {
-                totalRolesToAssign += setting.count;
-                for (let i = 0; i < setting.count; i++) {
-                    availableRoles.push(setting.role);
+            .update({
+                players: updatedPlayers,
+                game_data: {
+                    ...currentRoomData.game_data,
+                    center_role_pool: updatedCenterRolePool
                 }
-            }
-        });
-
-        // Sum up required roles from enabled gem categories
-        let totalRolesRequiredByGems = 0;
-        const rolesFromEnabledGems = [];
-        const usedGemNames = new Set(); // To track gems that have active counts
-
-        gemSettings.forEach(gemSetting => {
-            if (gemSetting.count > 0) {
-                const template = GEM_DATA[gemSetting.gem];
-                if (template) {
-                    totalRolesRequiredByGems += gemSetting.count;
-                    usedGemNames.add(gemSetting.gem);
-                    // Add roles corresponding to this gem up to its count
-                    ROLE_TEMPLATES.forEach(roleTemplate => {
-                        if (roleTemplate.gem === gemSetting.gem) {
-                            for (let i = 0; i < gemSetting.count; i++) { // Add 'count' number of roles from this gem
-                                rolesFromEnabledGems.push(roleTemplate.name);
-                            }
-                        }
-                    });
-                }
-            }
-        });
-
-
-        // Distribute available roles to players
-        const shuffledPlayers = [...players].sort(() => 0.5 - Math.random());
-        let updatedPlayers = [...players]; // Create a mutable copy
-        const centerRolePool = [];
-        let assignedRoleNames = {}; // To track counts of assigned roles
-
-        // Ensure each player gets one role first
-        for (let i = 0; i < shuffledPlayers.length; i++) {
-            if (availableRoles.length > 0) {
-                const randomIndex = Math.floor(Math.random() * availableRoles.length);
-                const roleName = availableRoles.splice(randomIndex, 1)[0];
-                const playerIndex = updatedPlayers.findIndex(p => p.id === shuffledPlayers[i].id);
-                if (playerIndex !== -1) {
-                    updatedPlayers[playerIndex].role = roleName;
-                    updatedPlayers[playerIndex]["chosen-image-url"] = await getRoleImagePath(roleName, currentRoomData); // Assign role image
-                    assignedRoleNames[roleName] = (assignedRoleNames[roleName] || 0) + 1;
-                }
-            } else {
-                // Handle case where not enough roles for all players (e.g., assign a default "Villager" or "No Role")
-                const playerIndex = updatedPlayers.findIndex(p => p.id === shuffledPlayers[i].id);
-                if (playerIndex !== -1) {
-                    updatedPlayers[playerIndex].role = "Villager"; // Default if no roles left
-                    updatedPlayers[playerIndex]["chosen-image-url"] = await getRoleImagePath("Villager", currentRoomData);
-                }
-                showMessage("Not enough roles to assign to all players. Some players received a default role.", 'warning');
-                break;
-            }
-        }
-
-        // Any remaining roles go into the center pool
-        for (const roleName of availableRoles) { // Use for...of for async inside loop
-            centerRolePool.push({
-                role: roleName,
-                "chosen-image-url": await getRoleImagePath(roleName, currentRoomData) // Assign image path for center roles
-            });
-        }
-
-
-        // Filter out roles that were assigned or put into center pool from role_settings
-        // And update the counts in role_settings based on what's left over for future games
-        const finalRoleSettings = roleSettings.map(setting => {
-            const assignedCount = assignedRoleNames[setting.role] || 0;
-            const remainingCount = Math.max(0, setting.count - assignedCount); // Subtract assigned roles
-            return { ...setting, count: remainingCount };
-        });
-
-        // Ensure all assigned player roles have their image paths resolved and stored
-        updatedPlayers = await Promise.all(updatedPlayers.map(async player => {
-            // Ensure player's own role has correct image path
-            player["chosen-image-url"] = await getRoleImagePath(player.role, currentRoomData);
-            return player;
-        }));
-
-        // Ensure center roles also have correct image paths
-        for (const role of centerRolePool) {
-            role["chosen-image-url"] = await getRoleImagePath(role.role, currentRoomData);
-        }
-
-
-        // Update the role_image_map with all roles that will be displayed
-        const newRoleImageMap = { ...currentRoomData.game_data.role_image_map };
-        for (const template of ROLE_TEMPLATES) {
-            newRoleImageMap[template.name] = await getRoleImagePath(template.name, currentRoomData);
-        }
-
-
-        const updatedGameData = {
-            ...currentRoomData.game_data,
-            players_roles_assigned: true, // Indicate roles are assigned
-            game_state: "night", // Transition to night phase after role assignment
-            current_day: 1, // Start on Day 1
-            center_role_pool: centerRolePool,
-            role_image_map: newRoleImageMap // Update the map with correct paths
-        };
-
-        const { error } = await supabase
-            .from('Rooms')
-            .update({ players: updatedPlayers, game_data: updatedGameData })
-            .eq('id', roomId);
+            })
+            .eq('id', currentRoomId);
 
         if (error) {
             throw error;
         }
-
-        showMessage("Game started! Roles have been assigned.", 'success');
-        console.log("[DEBUG] Game started. Updated players:", updatedPlayers, "Center pool:", centerRolePool);
-
+        showMessage("Game started! Roles assigned.", 'success');
+        console.log('[DEBUG] Game started, roles assigned and center pool cleared.');
     } catch (error) {
         console.error("[ERROR] Error starting game:", error);
         showMessage(`Error starting game: ${error.message}`, 'error');
