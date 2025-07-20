@@ -1,9 +1,8 @@
 // src/utils/helpers.js
 // Contains general utility functions.
 
-// Removed direct import of ROLE_TEMPLATES from here.
-// It will now be passed as an argument to getRoleTemplate.
-import { ROLE_IMAGE_BASE_PATH } from '../config/constants.js';
+// Re-import ROLE_TEMPLATES directly here so getRoleTemplate can access it.
+import { ROLE_TEMPLATES, ROLE_IMAGE_BASE_PATH } from '../config/constants.js';
 import { messageBox } from '../config/dom-elements.js';
 
 let imageCache = new Map(); // Global image cache for this module
@@ -52,18 +51,18 @@ export function generateUuidFallback() {
 }
 
 /**
- * Gets a role template by name from a provided array of role templates.
+ * Gets a role template by name.
+ * This function now accesses ROLE_TEMPLATES directly from its import.
  * @param {string} roleName - The name of the role.
- * @param {Array<Object>} allRoleTemplates - The array of all role templates to search within.
  * @returns {object|undefined} The role template object, or undefined if not found.
  */
-export function getRoleTemplate(roleName, allRoleTemplates) {
-    console.log('[DEBUG] [getRoleTemplate] allRoleTemplates received:', allRoleTemplates); // Added debug log
-    if (!allRoleTemplates || !Array.isArray(allRoleTemplates)) {
-        console.error('[ERROR] Invalid or undefined allRoleTemplates array provided to getRoleTemplate.');
+export function getRoleTemplate(roleName) {
+    // ROLE_TEMPLATES is now imported at the top of this file.
+    if (!ROLE_TEMPLATES) {
+        console.error('[ERROR] ROLE_TEMPLATES is undefined in helpers.js when trying to get role template for:', roleName);
         return undefined;
     }
-    return allRoleTemplates.find(role => role.name === roleName);
+    return ROLE_TEMPLATES.find(role => role.name === roleName);
 }
 
 /**

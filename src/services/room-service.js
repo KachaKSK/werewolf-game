@@ -15,7 +15,7 @@ export function generateCenterRolePool(roleSettings, roleImageMap) {
     const pool = [];
     roleSettings.forEach(setting => {
         if (!setting.isDisabled) { // Only add if not disabled
-            const roleTemplate = getRoleTemplate(setting.role, ROLE_TEMPLATES); // Pass ROLE_TEMPLATES
+            const roleTemplate = getRoleTemplate(setting.role); // Removed ROLE_TEMPLATES argument
             if (roleTemplate) {
                 for (let i = 0; i < setting.amount; i++) {
                     // Deep copy the role template
@@ -514,7 +514,7 @@ export async function addGemToSettings(supabase, roomId, roleName) {
         return false;
     }
 
-    const roleTemplate = getRoleTemplate(roleName, ROLE_TEMPLATES); // Pass ROLE_TEMPLATES
+    const roleTemplate = getRoleTemplate(roleName); // Removed ROLE_TEMPLATES argument
     if (!roleTemplate) {
         showMessage(`Role template for ${roleName} not found.`, 'error');
         console.error(`[ERROR] [addGemToSettings] Role template for ${roleName} not found.`);
@@ -571,7 +571,7 @@ export async function startGame(supabase, currentRoomId, currentRoomData) {
     // Populate available roles based on role settings and their amounts
     currentRoomData.game_data.role_settings.forEach(setting => {
         if (!setting.isDisabled) {
-            const roleTemplate = getRoleTemplate(setting.role, ROLE_TEMPLATES); // Pass ROLE_TEMPLATES
+            const roleTemplate = getRoleTemplate(setting.role); // Removed ROLE_TEMPLATES argument
             if (roleTemplate) {
                 for (let i = 0; i < setting.amount; i++) {
                     // Deep copy the role template for assignment

@@ -10,7 +10,7 @@ import {
     detailedOverlayRoleName, detailedOverlayThaiName, detailedOverlayDescription,
     detailedOverlayGemsContainer, addGemButton, gemSettingsList
 } from '../config/dom-elements.js';
-import { GEM_DATA, ROLE_TEMPLATES } from '../config/constants.js';
+import { GEM_DATA, ROLE_TEMPLATES } from '../config/constants.js'; // Keep ROLE_TEMPLATES here for other uses if any
 import { getBase64Image, hexToRgba, getRoleImagePath, getRoleTemplate } from '../utils/helpers.js';
 import { showDetailedRoleOverlay } from './modals.js'; // Import showDetailedRoleOverlay
 
@@ -116,6 +116,7 @@ export async function renderCenterRolePool(centerRolePool, roleImageMap) {
         roleCard.className = 'role-card-small bg-white p-2 rounded-lg shadow-md text-center cursor-pointer transform transition-transform duration-200 hover:scale-105';
         roleCard.dataset.roleName = role.name;
 
+        // No need to pass ROLE_TEMPLATES here, getRoleTemplate in helpers.js now imports it directly
         const imageUrl = role['chosen-image-url'] || roleImageMap[role.name] || getRoleImagePath(role.name);
         const base64Image = await getBase64Image(imageUrl);
 
@@ -144,6 +145,7 @@ export async function renderAllRoleCardsToOverlay(currentRoomData) {
         roleCard.className = 'role-card bg-white p-4 rounded-lg shadow-md text-center cursor-pointer transform transition-transform duration-200 hover:scale-105';
         roleCard.dataset.roleName = role.name;
 
+        // No need to pass ROLE_TEMPLATES here, getRoleImagePath in helpers.js now imports it directly
         const imageUrl = roleImageMap[role.name] || getRoleImagePath(role.name);
         const base64Image = await getBase64Image(imageUrl);
 
@@ -177,6 +179,7 @@ export async function renderPlayerRoleCards(roles, roleImageMap) {
         roleCard.className = 'player-role-card absolute bg-white p-4 rounded-lg shadow-lg text-center cursor-pointer transition-all duration-300 ease-in-out transform';
         roleCard.dataset.roleName = role.name;
 
+        // No need to pass ROLE_TEMPLATES here, getRoleImagePath in helpers.js now imports it directly
         const imageUrl = role['chosen-image-url'] || roleImageMap[role.name] || getRoleImagePath(role.name);
         const base64Image = await getBase64Image(imageUrl);
 
@@ -242,8 +245,8 @@ export function updatePlayerCardPositions() {
  */
 export async function renderGemSettings(roleSettings, isHost, updateRoleAmountCallback, toggleRoleDisabledCallback, removeGemFromSettingsCallback) {
     console.log('[DEBUG] [renderGemSettings] Rendering gem settings:', roleSettings);
-    console.log('[DEBUG] [renderGemSettings] ROLE_TEMPLATES (in render.js scope):', ROLE_TEMPLATES); // Added log for debugging
-    console.log('[DEBUG] [renderGemSettings] getRoleTemplate (function reference):', getRoleTemplate); // Added log for debugging
+    // Removed direct ROLE_TEMPLATES log as it's now handled by getRoleTemplate's internal import
+    console.log('[DEBUG] [renderGemSettings] getRoleTemplate (function reference):', getRoleTemplate);
 
     gemSettingsList.innerHTML = ''; // Clear existing settings
 
@@ -259,6 +262,7 @@ export async function renderGemSettings(roleSettings, isHost, updateRoleAmountCa
             const amount = setting.amount;
             const isDisabled = setting.isDisabled;
             const gemData = GEM_DATA[gemName];
+            // Call getRoleTemplate without passing ROLE_TEMPLATES
             const roleTemplate = getRoleTemplate(roleName);
 
             if (!gemData || !roleTemplate) {
@@ -303,7 +307,7 @@ export async function renderGemSettings(roleSettings, isHost, updateRoleAmountCa
             minusButton.dataset.action = 'decrementGem';
             minusButton.style.pointerEvents = 'auto'; // Ensure it's clickable
             minusButton.addEventListener('click', () => {
-                console.log(`[DEBUG] Minus button clicked for role: ${roleName}`); // Add log
+                console.log(`[DEBUG] Minus button clicked for role: ${roleName}`);
                 updateRoleAmountCallback(roleName, -1);
             });
             counterArea.appendChild(minusButton);
@@ -324,7 +328,7 @@ export async function renderGemSettings(roleSettings, isHost, updateRoleAmountCa
             plusButton.dataset.action = 'incrementGem';
             plusButton.style.pointerEvents = 'auto'; // Ensure it's clickable
             plusButton.addEventListener('click', () => {
-                console.log(`[DEBUG] Plus button clicked for role: ${roleName}`); // Add log
+                console.log(`[DEBUG] Plus button clicked for role: ${roleName}`);
                 updateRoleAmountCallback(roleName, 1);
             });
             counterArea.appendChild(plusButton);
