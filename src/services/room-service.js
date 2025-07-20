@@ -1,7 +1,6 @@
 // src/services/room-service.js
 // Contains functions for interacting with Supabase for room management.
 
-// Corrected import: added generateShortId
 import { showMessage, generateRoomId, generateShortId, getRoleTemplate, standardizeRoleName, getRoleImagePath, shuffleArray } from '../utils/helpers.js';
 import { ROLE_TEMPLATES, ROOM_BACKGROUNDS, ROLE_IMAGE_BASE_PATH } from '../config/constants.js'; // Import ROLE_TEMPLATES here
 
@@ -16,7 +15,7 @@ export function generateCenterRolePool(roleSettings, roleImageMap) {
     const pool = [];
     roleSettings.forEach(setting => {
         if (!setting.isDisabled) { // Only add if not disabled
-            const roleTemplate = getRoleTemplate(setting.role); // Removed ROLE_TEMPLATES argument
+            const roleTemplate = getRoleTemplate(setting.role);
             if (roleTemplate) {
                 for (let i = 0; i < setting.amount; i++) {
                     // Deep copy the role template
@@ -32,23 +31,8 @@ export function generateCenterRolePool(roleSettings, roleImageMap) {
     return pool;
 }
 
-let supabase = null; // Supabase client instance
-let currentRoomData = null; // To hold the latest room data
-let currentRoomId = null; // To hold the current room ID
-
-/**
- * Sets the Supabase client and current room data for service functions.
- * This is a workaround for not having a global state management.
- * @param {object} client - The Supabase client instance.
- * @param {object} roomData - The current room data.
- * @param {string} roomId - The current room ID.
- */
-export function setServiceDependencies(client, roomData, roomId) {
-    supabase = client;
-    currentRoomData = roomData;
-    currentRoomId = roomId;
-    console.log('[DEBUG] [setServiceDependencies] Supabase client and room data set in room-service.');
-}
+// Removed module-level supabase, currentRoomData, currentRoomId, and setServiceDependencies
+// These will now be passed as arguments to the functions that need them for better reliability.
 
 /**
  * Fetches room data by ID.
@@ -99,9 +83,6 @@ export async function createRoom(supabase, roomName, localId, playerName) {
         roles: [], // Initialize with empty roles
     };
 
-    // Select a random background image (This will now be handled by the UI or default)
-    // const randomBackground = ROOM_BACKGROUNDS[Math.floor(Math.random() * ROOM_BACKGROUNDS.length)]; // Removed this line
-
     // Initialize role_image_map with default images for all roles
     const initialRoleImageMap = {};
     ROLE_TEMPLATES.forEach(role => {
@@ -116,7 +97,6 @@ export async function createRoom(supabase, roomName, localId, playerName) {
                 name: roomName,
                 host_id: localId, // Host's full UUID
                 players: [initialPlayer],
-                // background_url: randomBackground, // Removed this line to fix the schema error
                 game_data: {
                     shared_counter: 0,
                     shared_random_value: null,
@@ -293,9 +273,10 @@ export async function confirmRenameRoom(supabase, roomId, newRoomName) {
  * @param {object} supabase - The Supabase client.
  * @param {string} roomId - The ID of the room.
  * @param {number} currentCounterValue - The current value of the counter.
+ * @param {object} currentRoomData - The current room's data.
  * @returns {Promise<void>}
  */
-export async function incrementCounter(supabase, roomId, currentCounterValue) {
+export async function incrementCounter(supabase, roomId, currentCounterValue, currentRoomData) {
     console.log(`[DEBUG] Incrementing counter for room ${roomId}...`);
     try {
         const newCounterValue = currentCounterValue + 1;
@@ -323,9 +304,10 @@ export async function incrementCounter(supabase, roomId, currentCounterValue) {
  * Generates a new random value in game_data.
  * @param {object} supabase - The Supabase client.
  * @param {string} roomId - The ID of the room.
+ * @param {object} currentRoomData - The current room's data.
  * @returns {Promise<void>}
  */
-export async function generateRandomValue(supabase, roomId) {
+export async function generateRandomValue(supabase, roomId, currentRoomData) {
     console.log(`[DEBUG] Generating random value for room ${roomId}...`);
     try {
         const newRandomValue = Math.floor(Math.random() * 100) + 1; // Random number between 1 and 100
@@ -376,16 +358,16 @@ export async function updateGameDataInDB(supabase, roomId, newGameData) {
 
 /**
  * Updates the amount of a specific role in role_settings.
+ * @param {object} supabase - The Supabase client.
+ * @param {string} currentRoomId - The ID of the current room.
+ * @param {object} currentRoomData - The current room's data.
  * @param {string} roleName - The name of the role to update.
  * @param {number} change - The amount to change by (+1 or -1).
  * @returns {Promise<void>}
  */
-export async function updateRoleAmount(roleName, change) {
+export async function updateRoleAmount(supabase, currentRoomId, currentRoomData, roleName, change) {
     console.log(`[DEBUG] [updateRoleAmount] Attempting to change amount for role: ${roleName} by ${change}`);
-    if (!currentRoomData || !currentRoomId || !supabase) {
-        showMessage('Room data not loaded or Supabase not initialized.', 'error');
-        return;
-    }
+    // Removed the internal check as parameters are now expected to be provided.
 
     const currentRoleSettings = [...(currentRoomData.game_data?.role_settings || [])];
     const roleIndex = currentRoleSettings.findIndex(setting => setting.role === roleName);
@@ -412,15 +394,15 @@ export async function updateRoleAmount(roleName, change) {
 
 /**
  * Toggles the disabled status of a role in role_settings.
+ * @param {object} supabase - The Supabase client.
+ * @param {string} currentRoomId - The ID of the current room.
+ * @param {object} currentRoomData - The current room's data.
  * @param {string} roleName - The name of the role to toggle.
  * @returns {Promise<void>}
  */
-export async function toggleRoleDisabled(roleName) {
+export async function toggleRoleDisabled(supabase, currentRoomId, currentRoomData, roleName) {
     console.log(`[DEBUG] [toggleRoleDisabled] Toggling disabled status for role: ${roleName}`);
-    if (!currentRoomData || !currentRoomId || !supabase) {
-        showMessage('Room data not loaded or Supabase not initialized.', 'error');
-        return;
-    }
+    // Removed the internal check as parameters are now expected to be provided.
 
     const currentRoleSettings = [...(currentRoomData.game_data?.role_settings || [])];
     const roleIndex = currentRoleSettings.findIndex(setting => setting.role === roleName);
@@ -440,17 +422,17 @@ export async function toggleRoleDisabled(roleName) {
 }
 
 /**
- * Updates the count for a specific gem category. (This function seems to be unused based on current UI, but kept for potential future use)
+ * Updates the count for a specific gem category.
+ * @param {object} supabase - The Supabase client.
+ * @param {string} currentRoomId - The ID of the current room.
+ * @param {object} currentRoomData - The current room's data.
  * @param {string} gemName - The name of the gem category.
  * @param {number} newCount - The new count for the gem.
  * @returns {Promise<void>}
  */
-export async function updateGemCount(gemName, newCount) {
+export async function updateGemCount(supabase, currentRoomId, currentRoomData, gemName, newCount) {
     console.log(`[DEBUG] Updating gem count for ${gemName} to ${newCount}...`);
-    if (!currentRoomData || !currentRoomId || !supabase) {
-        showMessage('Room data not loaded or Supabase not initialized.', 'error');
-        return;
-    }
+    // Removed the internal check as parameters are now expected to be provided.
 
     const currentRoleSettings = [...(currentRoomData.game_data?.role_settings || [])];
     const updatedRoleSettings = currentRoleSettings.map(setting => {
@@ -469,15 +451,15 @@ export async function updateGemCount(gemName, newCount) {
 
 /**
  * Removes a gem (role setting) from the game_data.
+ * @param {object} supabase - The Supabase client.
+ * @param {string} currentRoomId - The ID of the current room.
+ * @param {object} currentRoomData - The current room's data.
  * @param {string} roleName - The name of the role to remove from settings.
  * @returns {Promise<void>}
  */
-export async function removeGemFromSettings(roleName) {
+export async function removeGemFromSettings(supabase, currentRoomId, currentRoomData, roleName) {
     console.log(`[DEBUG] [removeGemFromSettings] Removing role setting for: ${roleName}`);
-    if (!currentRoomData || !currentRoomId || !supabase) {
-        showMessage('Room data not loaded or Supabase not initialized.', 'error');
-        return;
-    }
+    // Removed the internal check as parameters are now expected to be provided.
 
     const currentRoleSettings = [...(currentRoomData.game_data?.role_settings || [])];
     const updatedRoleSettings = currentRoleSettings.filter(setting => setting.role !== roleName);
@@ -496,15 +478,13 @@ export async function removeGemFromSettings(roleName) {
  * Adds a new gem (role setting) to the game_data.
  * @param {object} supabase - The Supabase client.
  * @param {string} roomId - The ID of the room.
+ * @param {object} currentRoomData - The current room's data.
  * @param {string} roleName - The name of the role to add to settings.
  * @returns {Promise<boolean>} True if added successfully, false otherwise.
  */
-export async function addGemToSettings(supabase, roomId, roleName) {
+export async function addGemToSettings(supabase, roomId, currentRoomData, roleName) {
     console.log(`[DEBUG] [addGemToSettings] Adding role setting for: ${roleName}`);
-    if (!currentRoomData || !currentRoomId || !supabase) {
-        showMessage('Room data not loaded or Supabase not initialized.', 'error');
-        return false;
-    }
+    // Removed the internal check as parameters are now expected to be provided.
 
     const currentRoleSettings = [...(currentRoomData.game_data?.role_settings || [])];
 
@@ -515,7 +495,7 @@ export async function addGemToSettings(supabase, roomId, roleName) {
         return false;
     }
 
-    const roleTemplate = getRoleTemplate(roleName); // Removed ROLE_TEMPLATES argument
+    const roleTemplate = getRoleTemplate(roleName);
     if (!roleTemplate) {
         showMessage(`Role template for ${roleName} not found.`, 'error');
         console.error(`[ERROR] [addGemToSettings] Role template for ${roleName} not found.`);
@@ -572,7 +552,7 @@ export async function startGame(supabase, currentRoomId, currentRoomData) {
     // Populate available roles based on role settings and their amounts
     currentRoomData.game_data.role_settings.forEach(setting => {
         if (!setting.isDisabled) {
-            const roleTemplate = getRoleTemplate(setting.role); // Removed ROLE_TEMPLATES argument
+            const roleTemplate = getRoleTemplate(setting.role);
             if (roleTemplate) {
                 for (let i = 0; i < setting.amount; i++) {
                     // Deep copy the role template for assignment
