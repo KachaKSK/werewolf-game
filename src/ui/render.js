@@ -201,30 +201,19 @@ export function updateRoomUI(roomData, localId, userId, kickPlayerCallback, curr
  * @param {boolean} isOverlayImage - True if this is an image in the overlay, false otherwise.
  */
 export async function displayRoleImageStatic(imgElement, role, currentRoomData, isOverlayImage = false) {
-    // Determine the primary image URL
-    const primaryImageUrl = role["chosen-image-url"] || getRoleImagePath(role.name, currentRoomData);
-    const nobodyRole = ROLE_TEMPLATES.find(t => t.name === "Nobody");
-    const nobodyImageUrl = nobodyRole ? getRoleImagePath(nobodyRole.name, currentRoomData) : 'https://placehold.co/100x100/cccccc/000000?text=No+Image'; // Fallback if Nobody role not found
-
-    console.log(`[DEBUG] Attempting to load primary image for ${role.name}: ${primaryImageUrl}`); // Added debug log
+    // Use the 'chosen-image-url' if available on the role object (for player cards, center pool)
+    // Otherwise, use getRoleImagePath (for role list, detailed overlay where role is a template)
+    const imageUrl = role["chosen-image-url"] || getRoleImagePath(role.name, currentRoomData);
 
     try {
-        const base64Image = await getBase64Image(primaryImageUrl);
+        const base64Image = await getBase64Image(imageUrl);
         imgElement.src = base64Image;
         imgElement.alt = `Image for ${role.name}`;
-        console.log(`[DEBUG] Displaying static image for ${role.name}: ${primaryImageUrl}`);
+        console.log(`[DEBUG] Displaying static image for ${role.name}: ${imageUrl}`);
     } catch (error) {
-        console.error(`[ERROR] Failed to load primary image for ${role.name} from ${primaryImageUrl}. Attempting fallback to Nobody image.`, error);
-        try {
-            const fallbackBase64Image = await getBase64Image(nobodyImageUrl);
-            imgElement.src = fallbackBase64Image;
-            imgElement.alt = `Fallback image for ${role.name} (Nobody)`;
-            console.log(`[DEBUG] Displaying fallback image for ${role.name}: ${nobodyImageUrl}`);
-        } catch (fallbackError) {
-            console.error(`[ERROR] Failed to load Nobody fallback image from ${nobodyImageUrl}:`, fallbackError);
-            imgElement.src = isOverlayImage ? 'https://placehold.co/180x180/ff0000/ffffff?text=Error' : 'https://placehold.co/100x100/ff0000/ffffff?text=Error';
-            imgElement.alt = `Error loading image for ${role.name}`;
-        }
+        console.error(`[ERROR] Failed to load static image for ${role.name} from ${imageUrl}:`, error);
+        imgElement.src = isOverlayImage ? 'https://placehold.co/180x180/ff0000/ffffff?text=Error' : 'https://placehold.co/100x100/ff0000/ffffff?text=Error';
+        imgElement.alt = `Error loading image for ${role.name}`;
     }
 }
 
@@ -369,7 +358,7 @@ export function renderAllRoleCardsToOverlay(currentRoomData) {
         const gemIcon = document.createElement('img');
         gemIcon.className = 'gem-icon-overlay';
         gemIcon.src = gemData.image;
-        gemIcon.alt = `${gemData.name} icon`; // Fixed alt text
+        gemIcon.alt = `${role.gem} icon`;
         card.appendChild(gemIcon);
 
         const nameBand = document.createElement('div');
@@ -466,7 +455,7 @@ export function renderCenterRolePool(centerRolePool, currentRoomData) {
         const gemIcon = document.createElement('img');
         gemIcon.className = 'gem-icon-overlay';
         gemIcon.src = gemData.image;
-        gemIcon.alt = `${gemData.name} icon`; // Fixed alt text
+        gemIcon.alt = `${role.gem} icon`;
         card.appendChild(gemIcon);
 
         const nameBand = document.createElement('div');
@@ -585,7 +574,7 @@ export async function createPlayerRoleCardElement(role, currentRoomData) {
     const gemIcon = document.createElement('img');
     gemIcon.className = 'gem-icon-overlay';
     gemIcon.src = gemData.image;
-    gemIcon.alt = `${gemData.name} icon`; // Fixed alt text
+    gemIcon.alt = `${role.gem} icon`;
     card.appendChild(gemIcon);
 
     const nameBand = document.createElement('div');
