@@ -35,35 +35,44 @@ export function showView(view) {
 
     rolePoolTab.classList.remove('active');
     rolePoolTabKnob.classList.add('hidden');
-    myRoleTriggerArea.classList.add('hidden'); // Hide player role trigger area by default
-    playerRolePileContainer.innerHTML = ''; // Clear player cards when switching views
-    playerRolePileContainer.classList.remove('spread'); // Ensure not spread
+    isRolePoolTabOpen = false;
 
-    // Hide gem counter section and start game button by default
+    playerRolePileContainer.innerHTML = '';
+    arePlayerCardsSpread = false;
+    playerRolePileContainer.classList.remove('active');
+    myRoleTriggerArea.classList.add('hidden');
+
+    // gemCounterSection and startGameBtn visibility is now handled by updateRoomUI based on isHost
+    // No need to explicitly hide them here, as updateRoomUI will be called after view change.
+    // However, for initial state when no room is joined, they should be hidden.
     gemCounterSection.classList.add('hidden');
     startGameBtn.classList.add('hidden');
 
 
     if (view === 'player-name') {
+        dynamicMainTitle.classList.add('hidden');
         playerNamelSection.classList.remove('hidden');
-        dynamicMainTitle.textContent = 'WolfVille Village Host';
-        console.log('[DEBUG] [showView] Player Name Section shown.');
+        renameRoomTitleBtn.classList.add('hidden');
     } else if (view === 'room-selection') {
+        dynamicMainTitle.classList.remove('hidden');
+        roomNameDisplay.textContent = 'WolfVille Village';
+        dynamicMainTitle.classList.remove('room-title-sign');
+        if (dynamicMainTitle.contains(renameRoomTitleBtn)) {
+            dynamicMainTitle.removeChild(renameRoomTitleBtn);
+        }
+        renameRoomTitleBtn.classList.add('hidden');
         roomSelectionCard.classList.remove('hidden');
-        dynamicMainTitle.textContent = 'Join or Create Room';
-        console.log('[DEBUG] [showView] Room Selection Card shown.');
+        // Ensure the create room tab is shown by default when entering room selection
+        showTab('create-room');
     } else if (view === 'my-room') {
-        dynamicMainTitle.textContent = `Room: ${roomNameDisplay.textContent}`; // Update title dynamically
-        // Only add rename button if it's not already there
-        if (!roomNameDisplay.querySelector('#renameRoomTitleBtn')) {
-            roomNameDisplay.appendChild(renameRoomTitleBtn);
+        dynamicMainTitle.classList.remove('hidden');
+        dynamicMainTitle.classList.add('room-title-sign');
+        if (!dynamicMainTitle.contains(renameRoomTitleBtn)) {
+            dynamicMainTitle.appendChild(renameRoomTitleBtn);
         }
         myRoomViewDiv.classList.remove('hidden');
         rolePoolTabKnob.classList.remove('hidden');
         myRoleTriggerArea.classList.remove('hidden');
-        gemCounterSection.classList.remove('hidden'); // Show gem counter section in my-room view
-        startGameBtn.classList.remove('hidden'); // Show start game button in my-room view
-        console.log('[DEBUG] [showView] My Room View shown.');
     } else {
         console.warn(`[DEBUG] [showView] Unknown view requested: ${view}`);
     }
@@ -98,5 +107,7 @@ export function showTab(tab) {
     } else {
         console.warn(`[DEBUG] [showTab] Unknown tab requested: ${tab}`);
     }
-    console.log(`[DEBUG] [showTab] Displaying tab: ${tab}`);
 }
+
+// Export for drag functionality
+export { arePlayerCardsSpread, isRolePoolTabOpen };

@@ -35,43 +35,30 @@ export function hideRolesOverlay() {
  * @param {object} currentRoomData - The current room data (for synchronized image map).
  */
 export async function showDetailedRoleOverlay(role, currentRoomData) {
-    console.log('[DEBUG] Showing detailed role overlay for:', role);
-    detailedRoleOverlay.classList.add('active');
+    console.log(`[DEBUG] Showing detailed overlay for role: ${role.name}`);
+
+    // Pass currentRoomData to getRoleImagePath
+    const imageUrl = role["chosen-image-url"] || getRoleImagePath(role.name, currentRoomData);
+    detailedOverlayImage.src = await getBase64Image(imageUrl);
+    detailedOverlayImage.alt = `Image for ${role.name}`;
 
     detailedOverlayRoleName.textContent = role.name;
-    detailedOverlayThaiName.textContent = role['thai-name'] || '';
+    detailedOverlayThaiName.textContent = role["thai-name"];
     detailedOverlayDescription.textContent = role.description;
 
-    // Determine the image URL (prioritize chosen-image-url from role object, then map, then default)
-    const roleImageMap = currentRoomData.game_data?.role_image_map || {};
-    const imageUrl = role['chosen-image-url'] || roleImageMap[role.name] || getRoleImagePath(role.name);
-    detailedOverlayImage.src = await getBase64Image(imageUrl);
-    detailedOverlayImage.alt = role.name;
-
-    // Render gems
     detailedOverlayGemsContainer.innerHTML = '';
-    if (role.gem) {
-        const gemData = GEM_DATA[role.gem];
-        if (gemData) {
-            const gemElement = document.createElement('div');
-            gemElement.className = 'flex items-center space-x-2 text-sm';
-            gemElement.innerHTML = `
-                <span class="px-2 py-1 rounded-full text-white" style="background-color: ${gemData.color};">${role.gem}</span>
-            `;
-            detailedOverlayGemsContainer.appendChild(gemElement);
-        }
-    }
-    if (role['rough-gem']) {
-        const roughGemData = GEM_DATA[role['rough-gem']];
-        if (roughGemData) {
-            const roughGemElement = document.createElement('div');
-            roughGemElement.className = 'flex items-center space-x-2 text-sm';
-            roughGemElement.innerHTML = `
-                <span class="px-2 py-1 rounded-full text-white" style="background-color: ${roughGemData.color};">Rough: ${role['rough-gem']}</span>
-            `;
-            detailedOverlayGemsContainer.appendChild(roughGemElement);
-        }
-    }
+    const roughGemTag = document.createElement('span');
+    roughGemTag.className = 'capsule-tag rough-gem-tag';
+    roughGemTag.textContent = role["rough-gem"];
+    detailedOverlayGemsContainer.appendChild(roughGemTag);
+
+    const gemTag = document.createElement('span');
+    gemTag.className = `capsule-tag gem-tag gem-${role.gem.replace(/\s/g, '')}`;
+    gemTag.textContent = role.gem;
+    detailedOverlayGemsContainer.appendChild(gemTag);
+
+    detailedRoleOverlay.classList.add('active');
+    console.log('[DEBUG] Detailed overlay activated.');
 }
 
 /**
@@ -79,24 +66,35 @@ export async function showDetailedRoleOverlay(role, currentRoomData) {
  */
 export function hideDetailedRoleOverlay() {
     detailedRoleOverlay.classList.remove('active');
-    console.log('[DEBUG] Hiding detailed role overlay.');
+    console.log('[DEBUG] Detailed overlay hidden.');
 }
 
 /**
- * Displays the add gem modal.
- * @param {Array<string>} availableGems - Array of gem names that can be added.
- * @param {object} GEM_DATA - The global GEM_DATA object for image and color info.
- * @param {function} addGemToSettingsCallback - Callback function to add the selected gem.
+ * Shows the modal for adding new gem categories.
+ * @param {object} currentRoomData - The current room data.
+ * @param {function} addGemToSettingsCallback - Callback to add gem to settings.
  */
-export function showAddGemModal(availableGems, GEM_DATA, addGemToSettingsCallback) {
-    availableGemsList.innerHTML = ''; // Clear previous list
-    if (availableGems.length === 0) {
-        availableGemsList.innerHTML = '<p class="text-center text-gray-500">No more gem categories to add.</p>';
-    } else {
-        availableGems.forEach(gemName => {
-            const gemData = GEM_DATA[gemName];
-            if (!gemData) return; // Skip if gem data is missing
+export function showAddGemModal(currentRoomData, addGemToSettingsCallback) {
+    if (!currentRoomData || !currentRoomData.game_data || !currentRoomData.game_data.gem_included_settings) {
+        // showMessage is handled in the calling context, just return
+        return;
+    }
 
+    availableGemsList.innerHTML = '';
+
+    const includedGems = currentRoomData.game_data.gem_included_settings.map(g => g.gem);
+    // Filter out "None" gem from the list of available gems to add
+    const allGemNames = Object.keys(GEM_DATA).filter(gemName => gemName !== "None");
+
+    const nonIncludedGems = allGemNames.filter(gemName =>
+        !includedGems.includes(gemName)
+    );
+
+    if (nonIncludedGems.length === 0) {
+        availableGemsList.innerHTML = '<p class="text-center text-gray-600">All available categories are already added.</p>';
+    } else {
+        nonIncludedGems.forEach(gemName => {
+            const gemData = GEM_DATA[gemName];
             const item = document.createElement('div');
             item.className = 'available-gem-item';
             item.dataset.gemName = gemName;
@@ -124,17 +122,9 @@ export function hideAddGemModal() {
 }
 
 /**
- * Displays the rename room modal.
- */
-export function showRenameRoomModal() { // Exported this function
-    renameRoomModal.classList.add('active');
-    console.log('[DEBUG] [showRenameRoomModal] Rename modal shown.');
-}
-
-/**
  * Hides the rename room modal.
  */
-export function hideRenameRoomModal() { // Exported this function
+export function hideRenameRoomModal() {
     renameRoomModal.classList.remove('active');
     renameRoomInput.value = '';
     console.log('[DEBUG] [hideRenameRoomModal] Rename modal hidden.');
