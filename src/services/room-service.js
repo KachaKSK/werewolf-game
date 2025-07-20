@@ -1,7 +1,8 @@
 // src/services/room-service.js
 // Contains functions for interacting with Supabase for room management.
 
-import { showMessage, generateRoomId, getRoleTemplate, standardizeRoleName, getRoleImagePath, shuffleArray } from '../utils/helpers.js';
+// Corrected import: added generateShortId
+import { showMessage, generateRoomId, generateShortId, getRoleTemplate, standardizeRoleName, getRoleImagePath, shuffleArray } from '../utils/helpers.js';
 import { ROLE_TEMPLATES, ROOM_BACKGROUNDS, ROLE_IMAGE_BASE_PATH } from '../config/constants.js'; // Import ROLE_TEMPLATES here
 
 /**
