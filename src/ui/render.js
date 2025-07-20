@@ -10,7 +10,8 @@ import {
     detailedOverlayRoleName, detailedOverlayThaiName, detailedOverlayDescription,
     detailedOverlayGemsContainer, addGemButton, gemSettingsList
 } from '../config/dom-elements.js';
-import { GEM_DATA, ROLE_TEMPLATES } from '../config/constants.js'; // Keep ROLE_TEMPLATES here for other uses if any
+// ROLE_TEMPLATES is imported here and should be available throughout this module.
+import { GEM_DATA, ROLE_TEMPLATES } from '../config/constants.js';
 import { getBase64Image, hexToRgba, getRoleImagePath, getRoleTemplate } from '../utils/helpers.js';
 import { showDetailedRoleOverlay } from './modals.js'; // Import showDetailedRoleOverlay
 
@@ -116,7 +117,7 @@ export async function renderCenterRolePool(centerRolePool, roleImageMap) {
         roleCard.className = 'role-card-small bg-white p-2 rounded-lg shadow-md text-center cursor-pointer transform transition-transform duration-200 hover:scale-105';
         roleCard.dataset.roleName = role.name;
 
-        // No need to pass ROLE_TEMPLATES here, getRoleTemplate in helpers.js now imports it directly
+        // getRoleImagePath and getBase64Image are from helpers.js
         const imageUrl = role['chosen-image-url'] || roleImageMap[role.name] || getRoleImagePath(role.name);
         const base64Image = await getBase64Image(imageUrl);
 
@@ -140,12 +141,12 @@ export async function renderAllRoleCardsToOverlay(currentRoomData) {
 
     const roleImageMap = currentRoomData.game_data?.role_image_map || {};
 
+    // ROLE_TEMPLATES is imported at the top of this file and should be available here.
     for (const role of ROLE_TEMPLATES) {
         const roleCard = document.createElement('div');
         roleCard.className = 'role-card bg-white p-4 rounded-lg shadow-md text-center cursor-pointer transform transition-transform duration-200 hover:scale-105';
         roleCard.dataset.roleName = role.name;
 
-        // No need to pass ROLE_TEMPLATES here, getRoleImagePath in helpers.js now imports it directly
         const imageUrl = roleImageMap[role.name] || getRoleImagePath(role.name);
         const base64Image = await getBase64Image(imageUrl);
 
@@ -179,7 +180,6 @@ export async function renderPlayerRoleCards(roles, roleImageMap) {
         roleCard.className = 'player-role-card absolute bg-white p-4 rounded-lg shadow-lg text-center cursor-pointer transition-all duration-300 ease-in-out transform';
         roleCard.dataset.roleName = role.name;
 
-        // No need to pass ROLE_TEMPLATES here, getRoleImagePath in helpers.js now imports it directly
         const imageUrl = role['chosen-image-url'] || roleImageMap[role.name] || getRoleImagePath(role.name);
         const base64Image = await getBase64Image(imageUrl);
 
@@ -245,7 +245,8 @@ export function updatePlayerCardPositions() {
  */
 export async function renderGemSettings(roleSettings, isHost, updateRoleAmountCallback, toggleRoleDisabledCallback, removeGemFromSettingsCallback) {
     console.log('[DEBUG] [renderGemSettings] Rendering gem settings:', roleSettings);
-    // Removed direct ROLE_TEMPLATES log as it's now handled by getRoleTemplate's internal import
+    // Confirm ROLE_TEMPLATES is available in this scope
+    console.log('[DEBUG] [renderGemSettings] ROLE_TEMPLATES (in render.js scope):', ROLE_TEMPLATES);
     console.log('[DEBUG] [renderGemSettings] getRoleTemplate (function reference):', getRoleTemplate);
 
     gemSettingsList.innerHTML = ''; // Clear existing settings
@@ -262,7 +263,7 @@ export async function renderGemSettings(roleSettings, isHost, updateRoleAmountCa
             const amount = setting.amount;
             const isDisabled = setting.isDisabled;
             const gemData = GEM_DATA[gemName];
-            // Call getRoleTemplate without passing ROLE_TEMPLATES
+            // Call getRoleTemplate without passing ROLE_TEMPLATES, as it's imported in helpers.js
             const roleTemplate = getRoleTemplate(roleName);
 
             if (!gemData || !roleTemplate) {
