@@ -36,6 +36,8 @@ import {
     prefillRenameRoomInput
 } from './ui/modals.js';
 import { ROLE_TEMPLATES, GEM_DATA } from './config/constants.js'; // Import ROLE_TEMPLATES and GEM_DATA
+import { playerNamelSection } from './config/dom-elements.js'; // Import playerNamelSection for direct check
+
 
 let supabase;
 let currentRoomId = null;
@@ -60,40 +62,41 @@ async function initializeApp() {
     playerName = localStorage.getItem('playerName');
     console.log(`[DEBUG] Player name from localStorage: ${playerName}`);
 
-    // Always show the player name input view first.
-    // The player name input will be pre-filled if a name exists in localStorage.
-    console.log("[DEBUG] Calling showView('player-name') at app initialization.");
-    showView('player-name');
-    if (playerName) {
-        playerNameInput.value = playerName;
-        console.log(`[DEBUG] Player name input pre-filled with: ${playerNameInput.value}`);
-        // Do not automatically transition to room-selection here.
-        // The transition will happen when the user clicks "Set Name" or "Join Room".
-    } else {
-        console.log("[DEBUG] No player name found in localStorage. Player name input remains empty.");
-    }
+    // Always show the player name input view first, with a slight delay
+    // to ensure DOM is fully ready and other scripts don't interfere.
+    setTimeout(() => {
+        console.log("[DEBUG] Delayed call to showView('player-name') at app initialization.");
+        if (playerNamelSection) {
+            showView('player-name');
+            if (playerName) {
+                playerNameInput.value = playerName;
+                console.log(`[DEBUG] Player name input pre-filled with: ${playerNameInput.value}`);
+            } else {
+                console.log("[DEBUG] No player name found in localStorage. Player name input remains empty.");
+            }
+        } else {
+            console.error("[ERROR] playerNamelSection element not found in DOM. Cannot display player name view.");
+        }
 
-    // Check for existing room ID in local storage or URL.
-    // This logic will now run *after* the player name view is displayed.
-    // If a room ID is found, the user will be prompted to join after setting their name.
-    const urlParams = new URLSearchParams(window.location.search);
-    const storedRoomId = localStorage.getItem('currentRoomId');
-    const urlRoomId = urlParams.get('room');
+        // Check for existing room ID in local storage or URL.
+        // This logic will now run *after* the player name view is displayed.
+        // If a room ID is found, the user will be prompted to join after setting their name.
+        const urlParams = new URLSearchParams(window.location.search);
+        const storedRoomId = localStorage.getItem('currentRoomId');
+        const urlRoomId = urlParams.get('room');
 
-    if (urlRoomId) {
-        roomIdInput.value = urlRoomId;
-        console.log(`[DEBUG] Room ID found in URL: ${urlRoomId}.`);
-        // Do not automatically join here. The user will manually click "Join Room"
-        // after seeing their name pre-filled or entering a new one.
-        showMessage(`Room ID from URL: ${urlRoomId}. Please click 'Join Room' to enter.`, 'info');
-    } else if (storedRoomId) {
-        roomIdInput.value = storedRoomId;
-        console.log(`[DEBUG] Previous room ID found in localStorage: ${storedRoomId}.`);
-        // Do not automatically join here.
-        showMessage(`Previous room ID found: ${storedRoomId}. Please click 'Join Room' to re-enter.`, 'info');
-    } else {
-        console.log("[DEBUG] No room ID found in URL or localStorage.");
-    }
+        if (urlRoomId) {
+            roomIdInput.value = urlRoomId;
+            console.log(`[DEBUG] Room ID found in URL: ${urlRoomId}.`);
+            showMessage(`Room ID from URL: ${urlRoomId}. Please click 'Join Room' to enter.`, 'info');
+        } else if (storedRoomId) {
+            roomIdInput.value = storedRoomId;
+            console.log(`[DEBUG] Previous room ID found in localStorage: ${storedRoomId}.`);
+            showMessage(`Previous room ID found: ${storedRoomId}. Please click 'Join Room' to re-enter.`, 'info');
+        } else {
+            console.log("[DEBUG] No room ID found in URL or localStorage.");
+        }
+    }, 100); // 100ms delay
 
     setupEventListeners();
     console.log("[DEBUG] App initialized finished.");
