@@ -99,8 +99,8 @@ export async function createRoom(supabase, roomName, localId, playerName) {
         roles: [], // Initialize with empty roles
     };
 
-    // Select a random background image
-    const randomBackground = ROOM_BACKGROUNDS[Math.floor(Math.random() * ROOM_BACKGROUNDS.length)];
+    // Select a random background image (This will now be handled by the UI or default)
+    // const randomBackground = ROOM_BACKGROUNDS[Math.floor(Math.random() * ROOM_BACKGROUNDS.length)]; // Removed this line
 
     // Initialize role_image_map with default images for all roles
     const initialRoleImageMap = {};
@@ -116,7 +116,7 @@ export async function createRoom(supabase, roomName, localId, playerName) {
                 name: roomName,
                 host_id: localId, // Host's full UUID
                 players: [initialPlayer],
-                background_url: randomBackground,
+                // background_url: randomBackground, // Removed this line to fix the schema error
                 game_data: {
                     shared_counter: 0,
                     shared_random_value: null,
