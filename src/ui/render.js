@@ -242,6 +242,9 @@ export function updatePlayerCardPositions() {
  */
 export async function renderGemSettings(roleSettings, isHost, updateRoleAmountCallback, toggleRoleDisabledCallback, removeGemFromSettingsCallback) {
     console.log('[DEBUG] [renderGemSettings] Rendering gem settings:', roleSettings);
+    console.log('[DEBUG] [renderGemSettings] ROLE_TEMPLATES (in render.js scope):', ROLE_TEMPLATES); // Added log for debugging
+    console.log('[DEBUG] [renderGemSettings] getRoleTemplate (function reference):', getRoleTemplate); // Added log for debugging
+
     gemSettingsList.innerHTML = ''; // Clear existing settings
 
     if (!roleSettings || roleSettings.length === 0) {
