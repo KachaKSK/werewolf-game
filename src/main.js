@@ -62,11 +62,15 @@ async function initializeApp() {
 
     // Always show the player name input view first.
     // The player name input will be pre-filled if a name exists in localStorage.
+    console.log("[DEBUG] Calling showView('player-name') at app initialization.");
     showView('player-name');
     if (playerName) {
         playerNameInput.value = playerName;
+        console.log(`[DEBUG] Player name input pre-filled with: ${playerNameInput.value}`);
         // Do not automatically transition to room-selection here.
         // The transition will happen when the user clicks "Set Name" or "Join Room".
+    } else {
+        console.log("[DEBUG] No player name found in localStorage. Player name input remains empty.");
     }
 
     // Check for existing room ID in local storage or URL.
@@ -78,17 +82,21 @@ async function initializeApp() {
 
     if (urlRoomId) {
         roomIdInput.value = urlRoomId;
+        console.log(`[DEBUG] Room ID found in URL: ${urlRoomId}.`);
         // Do not automatically join here. The user will manually click "Join Room"
         // after seeing their name pre-filled or entering a new one.
         showMessage(`Room ID from URL: ${urlRoomId}. Please click 'Join Room' to enter.`, 'info');
     } else if (storedRoomId) {
         roomIdInput.value = storedRoomId;
+        console.log(`[DEBUG] Previous room ID found in localStorage: ${storedRoomId}.`);
         // Do not automatically join here.
         showMessage(`Previous room ID found: ${storedRoomId}. Please click 'Join Room' to re-enter.`, 'info');
+    } else {
+        console.log("[DEBUG] No room ID found in URL or localStorage.");
     }
 
     setupEventListeners();
-    console.log("[DEBUG] App initialized.");
+    console.log("[DEBUG] App initialized finished.");
 }
 
 // --- Event Handlers ---
@@ -98,10 +106,12 @@ async function handleSetPlayerName() {
         playerName = name;
         localStorage.setItem('playerName', playerName);
         showMessage(`Player name set to: ${playerName}`, 'success');
+        console.log("[DEBUG] Player name set. Calling showView('room-selection').");
         showView('room-selection'); // Transition to room selection after name is set
         showTab('create-room'); // Default to create room tab
     } else {
         showMessage('Please enter a player name.', 'error');
+        console.log("[DEBUG] Player name input was empty.");
     }
 }
 
@@ -127,6 +137,7 @@ async function handleCreateRoom() {
             history.pushState(null, '', `?room=${currentRoomId}`); // Update URL
             subscribeToRoomChanges(currentRoomId);
             showMessage(`Room "${roomName}" created!`, 'success');
+            console.log("[DEBUG] Room created. Calling showView('my-room').");
             showView('my-room');
         }
     } catch (error) {
@@ -157,6 +168,7 @@ async function handleJoinRoom() {
             history.pushState(null, '', `?room=${currentRoomId}`); // Update URL
             subscribeToRoomChanges(currentRoomId);
             showMessage(`Joined room "${roomId}"!`, 'success');
+            console.log("[DEBUG] Room joined. Calling showView('my-room').");
             showView('my-room');
         }
     } catch (error) {
@@ -186,6 +198,7 @@ async function handleLeaveRoom() {
         currentRoomData = null; // Clear room data
         history.pushState(null, '', window.location.pathname); // Clear URL param
         showMessage('Left the room.', 'info');
+        console.log("[DEBUG] Left room. Calling showView('room-selection').");
         showView('room-selection');
         showTab('create-room'); // Default to create room tab
     } catch (error) {
