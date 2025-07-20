@@ -35,7 +35,7 @@ import {
     hideRenameRoomModal, cancelRenameRoom as uiCancelRenameRoom,
     prefillRenameRoomInput
 } from './ui/modals.js';
-import { GEM_DATA } from './config/constants.js'; // Import GEM_DATA
+import { GEM_DATA, ROLE_TEMPLATES } from './config/constants.js'; // Import ROLE_TEMPLATES directly
 
 // Global State Variables
 let supabase = null;
@@ -270,7 +270,7 @@ roleListDiv.addEventListener('click', (event) => {
         console.log(`[DEBUG] Role control clicked: Role: ${roleName}, Action: ${action}`);
 
         if (roleName && action) {
-            const roleTemplate = GEM_DATA.ROLE_TEMPLATES.find(r => r.name === roleName); // Use GEM_DATA.ROLE_TEMPLATES
+            const roleTemplate = ROLE_TEMPLATES.find(r => r.name === roleName); // Corrected: Removed GEM_DATA.
             if (roleTemplate && roleTemplate.gem === "None" && action === 'toggleDisable') {
                 showMessage(`Roles with gem "None" cannot be disabled/enabled.`, 'info');
                 return;
