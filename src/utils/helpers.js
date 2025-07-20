@@ -37,6 +37,14 @@ export function generateShortId() {
 }
 
 /**
+ * Generates a random 6-digit room ID.
+ * @returns {string} A 6-digit room ID string.
+ */
+export function generateRoomId() { // Exporting generateRoomId
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+/**
  * Fallback for UUID generation if crypto.randomUUID is not available.
  * @returns {string} A UUID string.
  */
