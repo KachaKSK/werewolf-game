@@ -1,0 +1,22 @@
+{
+  "name": "werewolf-game",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tunnel": "npx ngrok http 5173"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "vite": "^5.0.12",
+    "ngrok": "^5.0.0-beta.2"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.3"
+  }
+}

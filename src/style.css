@@ -1,0 +1,1471 @@
+html, body {
+            height: 100%; /* Ensure html and body take full height for vh calculations */
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevent body scroll if background extends */
+        }
+        body {
+            font-family: 'Lato', sans-serif; /* Changed to Lato */
+            background-color: #f8f8f8; /* Off-white background */
+            color: #333; /* Dark text for readability on light backgrounds */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+            box-sizing: border-box;
+            position: relative; /* Needed for absolute positioning of background */
+        }
+        .room-background {
+            position: fixed; /* Fixed to viewport */
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover; /* Cover the entire area */
+            background-position: center; /* Center the image */
+            background-repeat: no-repeat;
+            z-index: -2; /* Behind everything */
+            transition: background-image 0.5s ease-in-out; /* Smooth transition for background change */
+        }
+        .background-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.1); /* Very transparent dark overlay for readability on white UI */
+            z-index: -1; /* Between background and content */
+        }
+        .container {
+            background-color: rgba(255, 255, 255, 0.85); /* More transparent white for container */
+            border-radius: 1rem; /* More rounded corners */
+            padding: 2rem;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.3);
+            max-width: 90%; /* Allow wider container for two columns */
+            width: 100%;
+            max-height: calc(100vh - 2rem); /* Max height to allow container to scroll */
+            overflow-y: auto; /* Enable vertical scrolling for the main container */
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            position: relative; /* Ensure container is above background/overlay */
+            z-index: 0;
+        }
+        input[type="text"] {
+            background-color: rgba(255, 255, 255, 0.7); /* Light gray input */
+            border: 1px solid #c0c0c0;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            color: #333;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #8B4513; /* SaddleBrown - brick-brown */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button:hover {
+            background-color: #A0522D; /* Sienna - slightly lighter brick-brown on hover */
+            transform: translateY(-1px);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .message-box {
+            background-color: #2ecc71; /* Green for success messages */
+            color: white;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            word-wrap: break-word;
+        }
+        /* Specific styles for message box types */
+        .message-box.error {
+            background-color: #e74c3c; /* Red for errors */
+        }
+        .message-box.info {
+            background-color: #f39c12; /* Orange for info */
+        }
+
+        /* Updated player list to be a grid container */
+        .player-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); /* Explicitly 2 columns */
+            gap: 1rem;
+            margin-top: 1rem;
+            padding: 0;
+            list-style: none; /* Ensure no list bullets */
+            background-color: rgba(255, 255, 255, 0.7); /* Transparent light background for grid area */
+            border-radius: 0.5rem;
+            padding: 1rem; /* Padding inside the grid container */
+            border: 1px solid #ddd;
+            max-height: 250px; /* Allow scrolling if many players */
+            overflow-y: auto;
+        }
+        /* Individual player card styling */
+        .player-card {
+            background-color: rgba(255, 255, 255, 0.9); /* Lighter transparent card */
+            border-radius: 0.75rem; /* Rounded corners for cards */
+            padding: 0.5rem; /* Reduced padding for shorter cards */
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column; /* Stack elements vertically */
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.1s ease-in-out;
+            position: relative; /* For kick button positioning */
+        }
+        .player-card:hover {
+            transform: translateY(-2px);
+        }
+        .player-card.current-player {
+            border: 2px solid #8B4513; /* Brick-brown highlight current player */
+            box-shadow: 0 0 8px rgba(139, 69, 19, 0.5); /* Brick-brown glow */
+        }
+        /* Role and Status Tags container */
+        .player-tags-container {
+            display: flex; /* Make them horizontal */
+            justify-content: center;
+            align-items: center;
+            gap: 0.25rem; /* Small gap between capsules */
+            margin-top: 0.25rem; /* Space from player name */
+        }
+        /* Role Tags */
+        .player-role-tag {
+            padding: 0.2rem 0.6rem;
+            border-radius: 9999px; /* Pill shape */
+            font-size: 0.6rem;
+            font-weight: 700;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .host-tag {
+            background-color: #CD853F; /* Peru - orange-brown for Host */
+        }
+        .player-tag {
+            background-color: #F4A460; /* SandyBrown - yellow-orange for Player */
+        }
+        /* Status Tag for players */
+        .player-status-tag {
+            padding: 0.2rem 0.6rem;
+            border-radius: 9999px; /* Pill shape */
+            font-size: 0.6rem;
+            font-weight: 700;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .status-Alive {
+            background-color: #2ecc71; /* Green for Alive */
+        }
+        .status-Dead {
+            background-color: #e74c3c; /* Red for Dead */
+        }
+
+        /* Kick Button */
+        .kick-player-btn {
+            position: absolute;
+            top: 0.25rem;
+            right: 0.25rem;
+            background-color: #e74c3c; /* Red */
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 1.5rem;
+            height: 1.5rem;
+            font-size: 0.75rem;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+            padding: 0; /* Remove default padding */
+            line-height: 1; /* Adjust line height for 'x' */
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        .kick-player-btn:hover {
+            background-color: #c0392b; /* Darker red */
+            transform: scale(1.1);
+        }
+        .kick-player-btn:active {
+            transform: translateY(0);
+        }
+
+        .game-area {
+            background-color: rgba(255, 255, 255, 0.7); /* Transparent background for game area */
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            text-align: center;
+            margin-top: 1.5rem;
+            border: 1px solid #ddd;
+        }
+        .game-area button {
+            background-color: #2ecc71; /* Green for game buttons */
+            margin-top: 1rem;
+        }
+        .game-area button:hover {
+            background-color: #229954;
+        }
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #333; /* Dark title */
+            margin-bottom: 0.75rem;
+            text-align: center;
+        }
+
+        /* Card-like UI and tabs */
+        .card {
+            background-color: rgba(255, 255, 255, 0.85); /* Transparent white for card */
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #ddd;
+        }
+        .tab-button {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            background-color: rgba(240, 240, 240, 0.7); /* Transparent tab button */
+            color: #555;
+            border: none;
+            border-top-left-radius: 0.5rem;
+            border-top-right-radius: 0.5rem;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+        }
+        .tab-button.active {
+            background-color: rgba(255, 255, 255, 0.85); /* Active tab matches container */
+            color: #333;
+            border-bottom: 2px solid #8B4513; /* Brick-brown active tab indicator */
+        }
+        .tab-button:hover:not(.active) {
+            background-color: rgba(220, 220, 220, 0.7); /* Lighter grey on hover */
+        }
+        .tab-content {
+            padding-top: 1rem;
+        }
+        /* Room ID display */
+        .room-id-display {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 1rem;
+            background-color: rgba(255, 255, 255, 0.7); /* Transparent background for ID display */
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+        }
+        .room-id-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #8B4513; /* Brick-brown ID color */
+            letter-spacing: 0.1em;
+        }
+        /* Layout for two columns */
+        .my-room-layout {
+            display: flex;
+            flex-direction: column; /* Stack columns on small screens */
+            gap: 1rem; /* Space between columns */
+            width: 100%;
+            height: 100%; /* Take full height of parent container */
+        }
+        @media (min-width: 768px) { /* On medium screens and up, make it two columns */
+            .my-room-layout {
+                flex-direction: row;
+            }
+        }
+        .column {
+            flex: 1; /* Each column takes equal space */
+            background-color: rgba(255, 255, 255, 0.85); /* Transparent white background for columns */
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            overflow-y: auto; /* Allow individual columns to scroll if content overflows */
+        }
+        .column.left {
+            /* Specific styles for left column if needed */
+        }
+        .column.right {
+            /* Specific styles for right column if needed */
+        }
+        /* Role List Specific Styling (for the small list in the right column) */
+        .role-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            padding: 0.5rem;
+            background-color: rgba(255, 255, 255, 0.7); /* Reverted background color */
+            border-radius: 0.5rem;
+            border: 1px solid #ddd;
+        }
+        .role-item {
+            position: relative; /* For positioning of inner elements */
+            display: flex; /* Make it a flex container */
+            flex-direction: column; /* Stack name/description and capsules */
+            align-items: flex-start; /* Align content to the left */
+            padding: 0.75rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border-left: 4px solid; /* For gem color indicator */
+            min-height: 100px; /* Ensure enough height for content and capsules */
+            background-color: rgba(240, 240, 240, 0.9); /* Background for role item */
+            border-radius: 0.5rem;
+        }
+        /* These border colors are now redundant as band has color, but keeping for consistency if needed elsewhere */
+        .role-item.gem-Townfolks { border-color: #2ecc71; /* Green */ }
+        .role-item.gem-Werewolfs { border-color: #e74c3c; /* Red */ }
+        .role-item.gem-Specials { border-color: #f39c12; /* Orange */ }
+        .role-item.gem-Vampires { border-color: #9b59b6; /* Purple */ }
+        .role-item.gem-None { border-color: #95a5a6; /* Gray */ }
+        .role-item.gem-Zombies { border-color: #55B4B4; /* Mint-green */ }
+
+        /* Added for disabled roles */
+        .role-item.disabled {
+            opacity: 0.5; /* Fade out disabled roles */
+            /* pointer-events: none; */ /* REMOVED to allow clicking the disable button */
+            background-color: rgba(240, 240, 240, 0.5); /* Lighter background */
+            border-color: #ccc; /* Gray border */
+        }
+
+        /* Removed .role-image from quick view */
+
+        .role-text-content {
+            flex-grow: 1; /* Allow text content to grow */
+            display: flex; /* Enable flex for vertical alignment */
+            flex-direction: column;
+            justify-content: flex-start; /* Align content to top */
+            width: 100%; /* Take full width of parent */
+            padding-bottom: 1.5rem; /* Adjusted padding to separate description from capsules and controls */
+        }
+        .role-name {
+            font-weight: 700; /* Reverted to Lato Bold */
+            color: #333; /* Reverted to dark text for role title */
+            font-size: 1rem; /* Slightly smaller font */
+            margin-bottom: 0.1rem; /* Reduced margin to bring Thai name closer */
+            font-family: 'Lato', sans-serif; /* Reverted to Lato */
+        }
+        .role-thai-name {
+            font-size: 0.75rem; /* Small text */
+            color: #a0a090; /* Faded grey-yellow */
+            margin-bottom: 0.25rem; /* Reduced space before description */
+        }
+        .role-description {
+            font-size: 0.85rem;
+            color: #555; /* Reverted to dark text for description */
+            margin-top: 0.25rem; /* Reduced space from names */
+            flex-grow: 1; /* Allow it to grow downwards */
+            display: flex; /* Enable flex for internal content */
+            flex-direction: column; /* Stack content vertically */
+            justify-content: flex-start; /* Align text to top */
+            align-items: flex-start; /* Align text to left */
+            text-align: left; /* Left-align text */
+            min-height: 40px; /* Ensure a minimum height for the description area */
+            box-sizing: border-box; /* Include padding in height */
+            border: 1px solid rgba(0, 0, 0, 0.1); /* Faintly gray outline */
+            border-radius: 0.5rem; /* Round corners */
+            padding: 0.5rem; /* Padding inside the outline */
+            background-color: rgba(255, 255, 255, 0.7); /* Reverted background color for description */
+            backdrop-filter: blur(2px); /* Optional: subtle blur for background behind text */
+            -webkit-backdrop-filter: blur(2px); /* Safari support */
+            width: 100%; /* Take full width */
+            margin-bottom: 0.25rem; /* Narrower space between description and capsules */
+        }
+        .description-text { /* New class for the actual description text */
+            padding: 0; /* Remove padding */
+            flex-grow: 1; /* Allow text to take space */
+            display: flex;
+            align-items: flex-start; /* Vertically align text to top */
+            justify-content: flex-start; /* Horizontally align text to left */
+        }
+
+        /* New container for capsules, positioned at bottom-left */
+        .role-item-capsules-container {
+            position: absolute;
+            bottom: 0.5rem;
+            left: 0.75rem; /* Align with left padding of role-item */
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-start; /* Align capsules to the left */
+            gap: 0.5rem; /* Space between capsules */
+            z-index: 5; /* Ensure they are above background but below text if overlapping */
+        }
+        .capsule-tag {
+            padding: 0.15rem 0.5rem; /* Smaller padding */
+            border-radius: 9999px; /* Pill shape */
+            font-size: 0.6rem; /* Smaller font size */
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: inline-flex; /* Use inline-flex for proper capsule behavior */
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap; /* Prevent text from wrapping inside capsule */
+            color: white; /* Text color for all capsules */
+        }
+        .rough-gem-tag {
+            background-color: #666; /* Reverted background color for rough-gem */
+            color: white; /* Reverted text color for rough-gem */
+        }
+        .gem-tag {
+            color: white; /* Default text color for gem tags */
+        }
+        /* Existing gem color classes will apply to .gem-tag */
+        .gem-tag.gem-Townfolks { background-color: #2ecc71; }
+        .gem-tag.gem-Werewolfs { background-color: #e74c3c; }
+        .gem-tag.gem-Specials { background-color: #f39c12; }
+        .gem-tag.gem-Vampires { background-color: #9b59b6; }
+        .gem-tag.gem-Zombies { background-color: #55B4B4; }
+        .gem-tag.gem-None { background-color: #95a5a6; }
+
+        /* --- Overlay for ALL Role Cards --- */
+        .roles-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.8); /* Darker semi-transparent background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 900; /* Below the detailed overlay, above main content */
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        .roles-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .roles-overlay-content {
+            position: relative;
+            background-color: rgba(255, 255, 255, 0.95); /* Lighter background for the content area */
+            border-radius: 1.5rem;
+            padding: 1.5rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            max-width: 95%; /* Allow it to be wider */
+            width: 100%;
+            max-height: 95vh;
+            overflow-y: auto; /* Scrollable content */
+            display: flex;
+            flex-direction: column;
+            transform: scale(0.9);
+            transition: transform 0.3s ease-in-out;
+        }
+        .roles-overlay.active .roles-overlay-content {
+            transform: scale(1);
+        }
+
+        .roles-overlay-close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background-color: #e0e0e0; /* Light gray */
+            color: #333; /* Dark text */
+            border: none;
+            border-radius: 0.5rem; /* Squared with rounded corners */
+            width: 2.5rem;
+            height: 2.5rem;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.2s ease-in-out;
+            z-index: 10; /* Ensure it's above content */
+        }
+        .roles-overlay-close-btn:hover {
+            background-color: #c0c0c0; /* Slightly darker gray on hover */
+        }
+
+        .roles-grid-container-overlay { /* This is the grid inside the roles-overlay */
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); /* Responsive grid for cards */
+            gap: 1.5rem;
+            padding: 1rem; /* Padding inside the grid */
+            justify-content: center; /* Center cards horizontally */
+        }
+
+        /* Individual Role Card Styling (within the overlay grid) */
+        .role-card-overlay, .player-role-card, .center-pool-card { /* Combined styles for consistent sizing */
+            position: relative;
+            width: 220px; /* Fixed width for portrait card */
+            height: 320px; /* Fixed height for portrait card */
+            border-radius: 1rem;
+            overflow: hidden; /* Ensure content stays within rounded corners */
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            background-color: #f8f8f8; /* Light background for the card itself */
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            cursor: pointer; /* Indicate clickability */
+            box-sizing: border-box; /* Include padding/border in dimensions */
+        }
+
+        .role-card-overlay:hover, .player-role-card:hover, .center-pool-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Role Image Container (behind text content) */
+        .role-image-container-overlay {
+            position: absolute;
+            top: 25px; /* Adjusted to fit new header band */
+            left: 0.5rem;
+            right: 0.5rem;
+            width: auto;
+            height: auto;
+            background-color: transparent;
+            border-radius: 1rem;
+            overflow: hidden;
+            z-index: 5;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        .role-image-overlay {
+            width: 100%;
+            height: auto;
+            object-fit: contain;
+            object-position: center;
+            background-color: transparent;
+            display: block;
+            box-shadow: none;
+        }
+
+        /* NEW Header Band */
+        .role-header-band-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 30px;
+            background-color: rgba(74, 43, 26, 0.7);
+            color: white;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 1rem;
+            z-index: 10;
+            border-top-left-radius: 1rem;
+            border-top-right-radius: 1rem;
+            box-sizing: border-box;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 0.05em;
+        }
+
+        /* Left Band for Role Name */
+        .role-name-band-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 30px;
+            height: 100%;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: flex-end;
+            z-index: 10;
+            border-top-left-radius: 1rem;
+            border-bottom-left-radius: 1rem;
+            padding: 0;
+            box-sizing: border-box;
+            font-weight: 700;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            overflow: hidden;
+        }
+
+        .band-text-wrapper {
+            display: flex;
+            flex-direction: column;
+            white-space: nowrap;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            transform: rotate(180deg);
+            transform-origin: center bottom;
+            padding-bottom: 0.5rem;
+            height: auto;
+            width: auto;
+            box-sizing: border-box;
+        }
+
+        .band-english-name {
+            display: block;
+            font-weight: 700;
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+
+        .band-thai-name {
+            display: block;
+            font-weight: normal;
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.7);
+            white-space: nowrap;
+        }
+
+        /* Content Area (Description only) */
+        .role-content-area-overlay {
+            position: relative;
+            z-index: 15;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding-left: 40px; /* Space for the vertical name band (30px + 10px margin) */
+            padding-right: 0.5rem;
+            padding-bottom: 1rem;
+            padding-top: 35px; /* Space for the new horizontal header band (30px + 5px margin) */
+        }
+
+        .role-description-overlay {
+            font-size: 0.85rem;
+            color: #333;
+            margin-top: auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            min-height: 80px;
+            box-sizing: border-box;
+            border: 1px solid rgba(0, 0, 0, 0.2);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            background-color: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(0px);
+            -webkit-backdrop-filter: blur(0px);
+            text-align: left;
+            width: 100%;
+        }
+        .description-text-overlay {
+            margin-bottom: 0.5rem;
+            padding: 0 0.5rem;
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* New container for capsules, positioned absolutely on the card */
+        .new-capsules-container-overlay {
+            position: absolute;
+            bottom: 0.5rem;
+            right: 0.5rem;
+            z-index: 25;
+            display: flex;
+            gap: 0.25rem;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        /* Styles for individual capsules (reused from before) */
+        .capsule-tag {
+            padding: 0.15rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.6rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+            color: white;
+        }
+        .rough-gem-tag {
+            background-color: #666;
+            color: white;
+        }
+        .gem-tag {
+            color: white;
+        }
+        /* Existing gem color classes will apply to .gem-tag */
+        .gem-tag.gem-Townfolks { background-color: #2ecc71; }
+        .gem-tag.gem-Werewolfs { background-color: #e74c3c; }
+        .gem-tag.gem-Specials { background-color: #f39c12; }
+        .gem-tag.gem-Vampires { background-color: #9b59b6; }
+        .gem-tag.gem-Zombies { background-color: #55B4B4; }
+        .gem-tag.gem-None { background-color: #95a5a6; }
+
+        /* Gem Image at Top-Left */
+        .gem-icon-overlay {
+            position: absolute;
+            top: 0.25rem;
+            left: 0.25rem;
+            width: 35px;
+            height: 35px;
+            border-radius: 0.5rem;
+            object-fit: contain;
+            background-color: transparent;
+            padding: 0.1rem;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 20;
+            filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3));
+        }
+
+        /* --- Detailed Role View Overlay (on top of roles-overlay) --- */
+        .detailed-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        .detailed-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .detailed-overlay-card {
+            position: relative;
+            background-color: #fff;
+            border-radius: 1.5rem;
+            padding: 2rem;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4);
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            transform: scale(0.9);
+            transition: transform 0.3s ease-in-out;
+        }
+        .detailed-overlay.active .detailed-overlay-card {
+            transform: scale(1);
+        }
+
+        .detailed-overlay-close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background-color: #e0e0e0;
+            color: #333;
+            border: none;
+            border-radius: 0.5rem;
+            width: 2.5rem;
+            height: 2.5rem;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .detailed-overlay-close-btn:hover {
+            background-color: #c0c0c0;
+        }
+
+        .detailed-overlay-image-container {
+            width: 180px;
+            height: 180px;
+            background-color: transparent;
+            border-radius: 1rem;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+        .detailed-overlay-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+            background-color: transparent;
+            box-shadow: none;
+        }
+        .detailed-overlay-role-name {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 0.25rem;
+        }
+        .detailed-overlay-thai-name {
+            font-size: 1rem;
+            color: #a0a090;
+            margin-bottom: 1rem;
+        }
+        .detailed-overlay-description {
+            font-size: 1rem;
+            color: #333;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(0, 0, 0, 0.2);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            background-color: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(0px);
+            -webkit-backdrop-filter: blur(0px);
+            text-align: left;
+            width: 100%;
+        }
+        .detailed-overlay-gems-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.75rem;
+        }
+
+        /* Style for the rename button */
+        .rename-room-btn {
+            background-color: #8B4513;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 2rem;
+            height: 2rem;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+            padding: 0;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        .rename-room-btn:hover {
+            background-color: #A0522D;
+            transform: translateY(-1px);
+        }
+        .rename-room-btn:active {
+            transform: translateY(0);
+        }
+
+        /* Styles for the "Super Ultimate..." title */
+        .new-rocker-font {
+            font-family: 'New Rocker', cursive;
+            font-size: 2.2rem;
+            color: #e74c3c;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        /* Room Title Sign Styling */
+        .room-title-sign {
+            font-family: 'Sedgwick Ave Display', cursive;
+            font-size: 2.8rem;
+            color: #8B4513;
+            border-radius: 0.75rem;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            text-shadow: 2px 2px 3px rgba(0, 0, 0, 0.3);
+            letter-spacing: 0.05em;
+            width: 100%;
+        }
+
+
+        /* Modal Pop-up for Renaming */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1100;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background-color: #fff;
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            transform: scale(0.9);
+            transition: transform 0.3s ease-in-out;
+        }
+        .modal-overlay.active .modal-content {
+            transform: scale(1);
+        }
+        .modal-content h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: #333;
+        }
+        .modal-content input[type="text"] {
+            margin-bottom: 1.5rem;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+        .modal-buttons button {
+            flex: 1;
+        }
+
+        /* Role Pooling Controls */
+        .role-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.15rem;
+            position: absolute;
+            top: 0.5rem;
+            right: 0.75rem;
+            z-index: 5;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .role-controls.disabled {
+            opacity: 0.3;
+        }
+        .role-control-button {
+            width: 1.8rem;
+            height: 1.8rem;
+            border-radius: 0.3rem;
+            font-size: 1.2rem;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+            padding: 0;
+            color: white;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            background-color: #756d7a;
+        }
+        .role-control-button:hover {
+            transform: translateY(-1px);
+            background-color: #6a636e;
+        }
+        .role-control-button:active {
+            transform: translateY(0);
+        }
+        .role-pooling-count {
+            font-size: 1rem;
+            font-weight: 700;
+            min-width: 1.8rem;
+            height: 1.8rem;
+            line-height: 1.8rem;
+            text-align: center;
+            color: #333;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 0.5rem;
+            padding: 0 0.25rem;
+            background-color: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px);
+            box-sizing: border-box;
+        }
+        .disable-role-button {
+            width: 1.8rem;
+            height: 1.8rem;
+            border-radius: 0.3rem;
+            font-size: 0.9rem;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+            padding: 0;
+            color: white;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            margin-right: 0.15rem;
+            background-color: #756d7a;
+        }
+        .disable-role-button:hover {
+            background-color: #6a636e;
+            transform: translateY(-1px);
+        }
+        .disable-role-button:active {
+            transform: translateY(0);
+        }
+
+        /* New style for View All Roles button */
+        .view-all-roles-button {
+            background-color: rgba(220, 220, 220, 0.7);
+            color: #333;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+            width: auto;
+            align-self: flex-end;
+            margin-top: 0;
+            text-align: right;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .view-all-roles-button:hover {
+            background-color: rgba(190, 190, 190, 0.7);
+            transform: translateY(-1px);
+        }
+        .view-all-roles-button:active {
+            transform: translateY(0);
+        }
+
+        /* Role Pool Tab Styling */
+        .role-pool-tab {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            max-width: 350px;
+            height: 100vh;
+            background-color: #c0c0b0; /* Unified, less strong color */
+            z-index: 9998;
+            transform: translateX(-100%);
+            transition: transform 0.5s ease-in-out;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            padding: 1rem;
+        }
+        .role-pool-tab.active {
+            transform: translateX(0);
+        }
+
+        /* Role Pool Knob Styling (fixed to viewport) */
+        .role-pool-tab-knob {
+            position: fixed;
+            top: 50%;
+            left: 5px;
+            transform: translateY(-50%) rotate(90deg);
+            transform-origin: center left;
+            background-color: #c0c0b0; /* Unified, less strong color */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-top-left-radius: 0;
+            border-top-right-radius: 0.5rem;
+            border-bottom-left-radius: 0.5rem;
+            border-bottom-right-radius: 0;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+            white-space: nowrap;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.3);
+            z-index: 9999;
+        }
+        .role-pool-tab-knob:hover {
+            background-color: #a0a090; /* Slightly darker on hover */
+        }
+
+        .role-pool-tab-content {
+            flex-grow: 1;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 1rem;
+            padding: 1rem;
+            overflow-y: auto;
+            color: #333;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
+        }
+        .role-pool-tab-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            color: white;
+        }
+        .role-pool-tab-header h2 {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .role-pool-tab-close-btn {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            width: 2.5rem;
+            height: 2.5rem;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .role-pool-tab-close-btn:hover {
+            background-color: rgba(255, 255, 255, 0.4);
+        }
+
+        /* --- Player Role Card System (New) --- */
+        .player-role-pile-container {
+            position: fixed;
+            bottom: 0; /* Stick to the bottom */
+            left: 0;
+            width: 100%;
+            height: 100vh; /* Full viewport height to allow cards to move freely */
+            overflow: hidden; /* Hide cards when they are off-screen */
+            z-index: 950; /* Above main content, below overlays */
+            pointer-events: none; /* By default, don't capture clicks on the container itself */
+            /* TEMP: Debugging border */
+            /* border: 2px dashed blue; */
+        }
+
+        .player-role-pile-container.active {
+            pointer-events: auto; /* Enable clicks on cards when spread */
+        }
+
+        .my-role-trigger-area {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 50px; /* A reasonable height for the clickable area */
+            z-index: 960; /* Above the pile container */
+            cursor: pointer;
+            background-color: transparent; /* Invisible */
+            /* TEMP: Debugging border */
+            /* border-top: 2px dashed green; */
+        }
+
+        .player-role-card {
+            position: absolute;
+            transition: transform 0.5s ease-out, top 0.5s ease-out, left 0.5s ease-out, opacity 0.5s ease-out;
+            /* Initial state (hidden at bottom, peeking out) will be set by JS */
+            /* Use the same card styling as role-card-overlay for consistency */
+            width: 220px;
+            height: 320px;
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            background-color: #f8f8f8;
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+
+        .player-role-card.new-role-animation {
+            /* Styles for new role pop-up */
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+            top: 50%;
+            left: 50%;
+            z-index: 1000; /* Temporarily on top of everything */
+        }
+
+        /* Ensure .player-role-card has the same sub-element styling as .role-card-overlay */
+        .player-role-card .role-header-band-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 30px;
+            background-color: rgba(74, 43, 26, 0.7); color: white;
+            font-weight: bold; display: flex; align-items: center; justify-content: flex-end;
+            padding-right: 1rem; z-index: 10;
+            border-top-left-radius: 1rem; border-top-right-radius: 1rem;
+            box-sizing: border-box; text-transform: uppercase; font-size: 0.9rem; letter-spacing: 0.05em;
+        }
+        .player-role-card .gem-icon-overlay {
+            position: absolute; top: 0.25rem; left: 0.25rem; width: 35px; height: 35px;
+            border-radius: 0.5rem; object-fit: contain; background-color: transparent;
+            padding: 0.1rem; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 20; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3));
+        }
+        .player-role-card .role-name-band-overlay {
+            position: absolute; top: 0; left: 0; width: 30px; height: 100%; color: white;
+            display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end;
+            z-index: 10; border-top-left-radius: 1rem; border-bottom-left-radius: 1rem;
+            padding: 0; box-sizing: border-box; font-weight: 700; font-size: 0.9rem;
+            text-transform: uppercase; letter-spacing: 0.05em; overflow: hidden;
+        }
+        .player-role-card .band-text-wrapper {
+            display: flex; flex-direction: column; white-space: nowrap;
+            writing-mode: vertical-rl; text-orientation: mixed;
+            transform: rotate(180deg); transform-origin: center bottom;
+            padding-bottom: 0.5rem; height: auto; width: auto; box-sizing: border-box;
+        }
+        .player-role-card .band-english-name {
+            display: block; font-weight: 700; font-size: 0.9rem; white-space: nowrap;
+        }
+        .player-role-card .band-thai-name {
+            display: block; font-weight: normal; font-size: 0.7rem; color: rgba(255, 255, 255, 0.7); white-space: nowrap;
+        }
+        .player-role-card .new-capsules-container-overlay {
+            position: absolute; bottom: 0.5rem; right: 0.5rem; z-index: 25;
+            display: flex; gap: 0.25rem; flex-wrap: wrap; justify-content: flex-end;
+        }
+        .player-role-card .role-image-container-overlay {
+            position: absolute; top: 25px; left: 0.5rem; right: 0.5rem;
+            width: auto; height: auto; background-color: transparent; border-radius: 1rem;
+            overflow: hidden; z-index: 5; padding: 0; box-sizing: border-box;
+        }
+        .player-role-card .role-image-overlay {
+            width: 100%; height: auto; object-fit: contain; object-position: center;
+            background-color: transparent; display: block; box-shadow: none;
+        }
+        .player-role-card .role-content-area-overlay {
+            position: relative; z-index: 15; flex-grow: 1; display: flex;
+            flex-direction: column; justify-content: flex-end;
+            padding-left: 40px; padding-right: 0.5rem; padding-bottom: 1rem; padding-top: 35px;
+        }
+        .player-role-card .role-description-overlay {
+            font-size: 0.85rem; color: #333; margin-top: auto; display: flex;
+            flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; min-height: 80px; box-sizing: border-box;
+            border: 1px solid rgba(0, 0, 0, 0.2); border-radius: 0.5rem; padding: 0.75rem;
+            background-color: rgba(255, 255, 255, 0.9); backdrop-filter: blur(0px);
+            -webkit-backdrop-filter: blur(0px); text-align: left; width: 100%;
+        }
+        .player-role-card .description-text-overlay {
+            margin-bottom: 0.5rem; padding: 0 0.5rem; flex-grow: 1; display: flex;
+            align-items: center; justify-content: center;
+        }
+
+        /* NEW: Gem Counter Section Styles */
+        .gem-counter-section {
+            /* Inherits .card styles */
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+        }
+
+        .gem-settings-list {
+            display: flex;
+            overflow-x: auto; /* Enable horizontal scrolling */
+            white-space: nowrap; /* Prevent items from wrapping */
+            gap: 1rem; /* Space between gem items */
+            padding-bottom: 1rem; /* Space for scrollbar */
+            margin-bottom: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            background-color: rgba(255, 255, 255, 0.7);
+        }
+
+        .gem-setting-item {
+            flex-shrink: 0; /* Prevent items from shrinking */
+            width: 120px; /* Fixed width for each gem item */
+            height: 180px; /* Fixed height */
+            background-color: #fefefe;
+            border: 1px solid #ddd;
+            border-radius: 0.75rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .gem-setting-image-area {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #ADD8E6; /* LightBlue for image area */
+            border-top-left-radius: 0.75rem;
+            border-top-right-radius: 0.75rem;
+            overflow: hidden;
+            position: relative;
+        }
+        .gem-setting-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* Ensure image fits */
+            object-position: center;
+            display: block;
+        }
+
+        .gem-setting-separator {
+            height: 1px;
+            background-color: #e0e0e0; /* Faint gray separator */
+            margin: 0 0.5rem;
+        }
+
+        .gem-setting-counter-area {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #90EE90; /* LightGreen for counter area */
+            padding: 0.5rem;
+            border-bottom-left-radius: 0.75rem;
+            border-bottom-right-radius: 0.75rem;
+            gap: 0; /* No space between buttons and counter */
+        }
+
+        .gem-setting-button {
+            width: 30px;
+            height: 30px;
+            border-radius: 0.3rem; /* Small rounded corners */
+            font-size: 1.2rem;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+            padding: 0;
+            color: white;
+            background-color: #6c757d; /* Gray for buttons */
+            border: none;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        .gem-setting-button:hover {
+            background-color: #5a6268; /* Darker gray on hover */
+        }
+        .gem-setting-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .gem-setting-count {
+            min-width: 30px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1rem;
+            color: #333;
+            background-color: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 0.5rem;
+            padding: 0 0.25rem;
+            line-height: 30px; /* Match button height */
+            box-sizing: border-box;
+        }
+
+        .gem-setting-close-btn {
+            position: absolute;
+            top: 0.25rem;
+            right: 0.25rem;
+            background-color: #e74c3c; /* Red for close button */
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 0.7rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            z-index: 10;
+            padding: 0;
+            line-height: 1;
+        }
+        .gem-setting-close-btn:hover {
+            background-color: #c0392b;
+        }
+
+        .add-gem-button {
+            flex-shrink: 0;
+            width: 120px;
+            height: 180px;
+            background-color: #f0f0f0; /* Light gray */
+            color: #888;
+            border: 2px dashed #ccc;
+            border-radius: 0.75rem;
+            font-size: 3rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+            margin-left: 1rem; /* Space from last gem item */
+        }
+        .add-gem-button:hover {
+            background-color: #e0e0e0;
+        }
+
+        .start-game-btn {
+            background-color: #8B4513; /* Brown */
+            color: white;
+            font-size: 1.2rem;
+            padding: 1rem 2rem;
+            margin-top: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .start-game-btn:hover {
+            background-color: #A0522D;
+        }
+
+        /* Add Gem Modal Specifics */
+        .available-gems-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 0.75rem;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .available-gem-item {
+            background-color: #f9f9f9;
+            border: 1px solid #eee;
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 80px;
+        }
+        .available-gem-item:hover {
+            background-color: #e0e0e0;
+        }
+        .available-gem-item.selected {
+            background-color: #8B4513;
+            color: white;
+            border-color: #8B4513;
+        }
+        .available-gem-item-image {
+            width: 40px;
+            height: 40px;
+            object-fit: contain;
+            margin-bottom: 0.25rem;
+        }
+        .available-gem-item-name {
+            font-size: 0.8rem;
+            font-weight: bold;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }

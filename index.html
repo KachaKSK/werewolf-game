@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WolfVille Village Host</title>
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lato font from Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Nosifer font from Google Fonts for specific title -->
+    <link href="https://fonts.googleapis.com/css2?family=Nosifer&display=swap" rel="stylesheet">
+    <!-- Rubik Dirt font from Google Fonts for role titles -->
+    <link href="https://fonts.googleapis.com/css2?family=Rubik+Dirt&display=swap" rel="stylesheet">
+    <!-- New Rocker for the "Super Ultimate..." title -->
+    <link href="https://fonts.googleapis.com/css2?family=New+Rocker&display=swap" rel="stylesheet">
+    <!-- Sedgwick Ave Display for the main room title -->
+    <link href="https://fonts.googleapis.com/css2?family=Sedgwick+Ave+Display&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+    <div id="roomBackground" class="room-background"></div>
+    <div class="background-overlay"></div>
+
+    <div class="container">
+        <!-- Main Title Area - Dynamically updated -->
+        <h1 id="dynamicMainTitle" class="room-title-sign flex items-center">
+            <span id="roomNameDisplay"></span><!-- Content will be set by JavaScript based on current view -->
+            <button id="renameRoomTitleBtn" class="rename-room-btn hidden">✎</button>
+        </h1>
+
+        <!-- Player Name Section -->
+        <div id="player-name-section" class="hidden">
+            <h1 class="new-rocker-font">Super Ultimate Ultra Werewolf</h1>
+            <div class="section-title">Your Name</div>
+            <input type="text" id="playerNameInput" placeholder="Enter your name" class="mb-4">
+            <button id="setPlayerNameBtn">Set Name</button>
+        </div>
+
+        <!-- Room Selection Card (Create/Join) -->
+        <div id="room-selection-card" class="card hidden">
+            <div class="tabs">
+                <button id="createRoomTabBtn" class="tab-button active">Create Room</button>
+                <button id="joinRoomTabBtn" class="tab-button">Join Room</button>
+            </div>
+
+            <div id="create-room-tab" class="tab-content">
+                <input type="text" id="newRoomNameInput" placeholder="WolfVille Village" class="mb-4">
+                <button id="createRoomBtn">Create New Room</button>
+            </div>
+
+            <div id="join-room-tab" class="tab-content hidden">
+                <input type="text" id="roomIdInput" placeholder="Enter Room ID" class="mb-4">
+                <button id="joinRoomBtn">Join Room</button>
+            </div>
+        </div>
+
+        <!-- My Room View - Now with two columns -->
+        <div id="my-room-view" class="hidden my-room-layout">
+            <!-- The room title and rename button are now handled by dynamicMainTitle -->
+
+            <!-- Left Column -->
+            <div class="column left">
+                <button id="leaveRoomBtn" class="bg-red-500 hover:bg-red-600">Leave Room</button>
+
+                <div id="room-info">
+                    <div class="section-title">Current Room ID:</div>
+                    <div class="room-id-display">
+                        <span id="currentRoomId" class="room-id-value"></span>
+                    </div>
+                    
+                    <div class="section-title mt-4">Players in Village</div>
+                    <div id="playerList" class="player-grid">
+                        <!-- Player cards will be dynamically inserted here -->
+                    </div>
+
+                    <!-- New: Gem Counter Section -->
+                    <div id="gem-counter-section" class="card hidden">
+                        <h2 class="section-title">Roles</h2>
+                        <div id="gemSettingsList" class="gem-settings-list">
+                            <!-- Gem setting items will be dynamically inserted here -->
+                            <button id="addGemButton" class="add-gem-button">+</button>
+                        </div>
+                        <button id="startGameBtn" class="start-game-btn hidden">Enter the Village</button>
+                    </div>
+
+                    <div class="game-area">
+                        <div class="section-title">Village State (Shared)</div>
+                        <p id="sharedCounterDisplay" class="text-xl font-bold text-green-600">Counter: 0</p>
+                        <p id="sharedRandomDisplay" class="text-xl font-bold text-purple-600 mt-2">Random Value: N/A</p>
+                        <button id="incrementCounterBtn">Increment Counter</button>
+                        <button id="generateRandomBtn" class="bg-purple-500 hover:bg-purple-600 mt-2">Generate Random Value</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column (Role List and View All Roles button) -->
+            <div class="column right">
+                <!-- Moved "View All Roles" button to the top, right-aligned -->
+                <button id="viewAllRolesBtn" class="view-all-roles-button">All Roles ></button>
+                <h2 class="text-xl font-bold text-gray-800 text-center mb-4">Available Roles (Quick View)</h2>
+                <div id="roleList" class="role-list">
+                    <!-- Roles will be dynamically inserted here (small list) -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Message Box for user feedback -->
+        <div id="messageBox" class="message-box hidden"></div>
+    </div>
+
+    <!-- Overlay for ALL Role Cards -->
+    <div id="rolesOverlay" class="roles-overlay">
+        <div class="roles-overlay-content">
+            <button id="rolesOverlayCloseBtn" class="roles-overlay-close-btn">X</button>
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-6">All Available Roles</h2>
+            <div id="rolesGridContainerOverlay" class="roles-grid-container-overlay">
+                <!-- Role cards will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Overlay for DETAILED Role View (on top of roles-overlay) -->
+    <div id="detailedRoleOverlay" class="detailed-overlay">
+        <div class="detailed-overlay-card">
+            <button id="detailedOverlayCloseBtn" class="detailed-overlay-close-btn">X</button>
+            <div id="detailedOverlayImageContainer" class="detailed-overlay-image-container">
+                <img id="detailedOverlayImage" class="detailed-overlay-image" src="" alt="Role Image">
+            </div>
+            <div id="detailedOverlayRoleName" class="detailed-overlay-role-name"></div>
+            <div id="detailedOverlayThaiName" class="detailedOverlay-thai-name"></div>
+            <div id="detailedOverlayDescription" class="detailed-overlay-description"></div>
+            <div id="detailedOverlayGemsContainer" class="detailed-overlay-gems-container"></div>
+        </div>
+    </div>
+
+    <!-- Modal for Renaming Room -->
+    <div id="renameRoomModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>Rename Room</h3>
+            <input type="text" id="renameRoomInput" placeholder="Enter new room name">
+            <div class="modal-buttons">
+                <button id="confirmRenameBtn">Rename</button>
+                <button id="cancelRenameBtn" class="bg-gray-500 hover:bg-gray-600">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Role Pool Tab -->
+    <div id="rolePoolTab" class="role-pool-tab">
+        <div class="role-pool-tab-header">
+            <h2>Role Pool</h2>
+            <button id="rolePoolTabCloseBtn" class="role-pool-tab-close-btn">X</button>
+        </div>
+        <div class="role-pool-tab-content">
+            <p class="text-center text-gray-600 mb-4">Cards available in the center pool for distribution.</p>
+            <div id="centerRolePoolDisplay" class="flex flex-wrap gap-4 justify-center">
+                <!-- Center role pool cards will be displayed here -->
+            </div>
+        </div>
+    </div>
+    <!-- Moved knob outside the tab for persistent visibility -->
+    <div id="rolePoolTabKnob" class="role-pool-tab-knob hidden">Role Pool</div>
+
+    <!-- Player Role Card System (New Implementation) -->
+    <div id="playerRolePileContainer" class="player-role-pile-container">
+        <!-- Player's role cards will be dynamically inserted here -->
+    </div>
+    <div id="myRoleTriggerArea" class="my-role-trigger-area"></div>
+
+    <!-- Add Gem Modal -->
+    <div id="addGemModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>Add Role Category</h3>
+            <div id="availableGemsList" class="available-gems-list">
+                <!-- Available gems to add will be listed here -->
+            </div>
+            <div class="modal-buttons">
+                <button id="cancelAddGemBtn" class="bg-gray-500 hover:bg-gray-600">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Your main.js script should be here, right before the closing </body> tag - UPDATED PATH -->
+    <script src="./src/main.js" type="module"></script>
+</body>
+</html>
