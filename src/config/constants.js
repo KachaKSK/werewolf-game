@@ -22,7 +22,6 @@ export const GEM_DATA = {
 
 // Base path for role images
 export const ROLE_IMAGE_BASE_PATH = '/images/roles/'; // Corrected path
-export const NOBODY_IMAGE_PATH = '/images/roles/nobody-v-1.jpeg'; // Added nobody image path
 
 // Role Templates Data (Corrected and parsed from user input)
 export const ROLE_TEMPLATES = [
@@ -414,195 +413,434 @@ export const ROLE_TEMPLATES = [
         "rough-gem": "Townfolks",
         abilities: [
             {
-                name: "Healing Potion",
-                action: "-select-status-dead -c1 -night -late -o -send-revive",
+                name: "Healing",
+                action: "-night -c1 -select-status-dead -send-revive -this-remove-ability-harming -o",
             },
             {
-                name: "Harming Potion",
-                action: "-select-any -c1 -night -o -send-kill",
+                name: "Harming",
+                action: "-night -c1 -select-any -send-kill -this-remove-ability-healing -o",
             }
         ],
         conditions: undefined,
     },
     {
-        name: "Detective",
-        "thai-name": "นักสืบ",
-        description: "Can investigate a player to learn if they have a night ability or not.",
-        "variant-count": 1, // Default to 1
+        name: "Spellcaster",
+        "thai-name": "ผู้ร่ายมนต์",
+        description: "At night, chooses a player who cannot speak during the following day phase.",
+        "variant-count": 4, // Based on previous image-template count
         gem: "Townfolks",
         "rough-gem": "Townfolks",
         abilities: [
             {
-                name: "Investigate",
-                action: "-select-any -show-has-ability -c1 -o",
+                name: "Speakless",
+                action: "-night -late -select-any -send-unspokable-l1 -o",
             }
         ],
         conditions: undefined,
     },
     {
-        name: "Guardian Angel",
-        "thai-name": "นางฟ้าผู้พิทักษ์",
-        description: "Each night, chooses one player to protect; if that player is attacked, the Guardian Angel may sacrifice themselves to save the protected player.",
-        "variant-count": 1, // Default to 1
-        gem: "Townfolks",
-        "rough-gem": "Townfolks",
-        abilities: [
-            {
-                name: "Divine Protection",
-                action: "-select-any -send-condition-being_protected<name: -this-name> -c1 -o -night -before-gem-werewolfs",
-            }
-        ],
-        conditions: [
-            {
-                condition: "-receive-kill",
-                result: "-cancel -select-name-<name> -send-kill -c1",
-            }
-        ],
-    },
-    {
-        name: "Mayor's Assistant",
-        "thai-name": "ผู้ช่วยนายกเทศมนตรี",
-        description: "If the Mayor dies, they become the new Mayor.",
+        name: "Bodybuilder",
+        "thai-name": "นักกล้าม",
+        description: "Survives one additional night attack from Werewolves.",
         "variant-count": 1, // Default to 1
         gem: "Townfolks",
         "rough-gem": "Townfolks",
         abilities: undefined,
         conditions: [
             {
-                condition: "-none-mayor",
-                result: "-gain-role-mayor",
+                condition: "-receive-kill -by-gem-werewolfs",
+                result: "-cancel -c1",
             }
         ],
     },
     {
-        name: "Paranormal Investigator",
-        "thai-name": "นักสืบสวนคดีเหนือธรรมชาติ",
-        description: "Each night, chooses a player to learn if they are a Ghost or not.",
+        name: "Martyr",
+        "thai-name": "ผู้เห็นเหตุการณ์/มรณสักขี",
+        description: "If someone is nominated for lynching, they can choose to die in their place to save the nominated player.",
         "variant-count": 1, // Default to 1
         gem: "Townfolks",
         "rough-gem": "Townfolks",
         abilities: [
             {
-                name: "Spectral Sight",
-                action: "-select-any -show-ghost -c1 -o",
-            }
-        ],
-        conditions: undefined,
-    },
-    {
-        name: "Mortician",
-        "thai-name": "สัปเหร่อ",
-        description: "Each night, chooses a dead player to learn their role.",
-        "variant-count": 1, // Default to 1
-        gem: "Townfolks",
-        "rough-gem": "Townfolks",
-        abilities: [
-            {
-                name: "Post-mortem Analysis",
-                action: "-select-status-dead -show-role -c1 -o",
-            }
-        ],
-        conditions: undefined,
-    },
-    //Werewolves
-    {
-        name: "Werewolf",
-        "thai-name": "มนุษย์หมาป่า",
-        description: "Each night, all Werewolves collectively choose one player to kill. They win if the number of Werewolves equals the number of Villagers.",
-        "variant-count": 4, // Default to 1
-        gem: "Werewolfs",
-        "rough-gem": "Werewolfs",
-        abilities: [
-            {
-                name: "Devour",
-                action: "-select-any -send-kill -c1 -o -night -gem-werewolfs -unusable -end-turn",
-            }
-        ],
-        conditions: undefined,
-    },
-    {
-        name: "Alpha Werewolf",
-        "thai-name": "หัวหน้ามนุษย์หมาป่า",
-        description: "Leads the Werewolf faction. Their vote counts as two during the night.",
-        "variant-count": 1, // Default to 1
-        gem: "Werewolfs",
-        "rough-gem": "Werewolfs",
-        abilities: [
-            {
-                name: "Devour",
-                action: "-select-any -send-kill -c1 -o -night -gem-werewolfs -unusable -end-turn",
+                name: "Die For You",
+                action: "-select-<event> -cancel -o -this-send-kill",
             }
         ],
         conditions: [
             {
-                condition: "-night",
-                result: "-increased-vote_count-1",
+                condition: "-event-lynched",
+                result: "-this -trigger-ability-die_for_you<event: -event>",
             }
         ],
+        isPrimarilyDisabled: true,
+    },
+    {
+        name: "Beholder",
+        "thai-name": "ผู้สังเกตการณ์",
+        description: "Wakes up at night with seers to learn who the Seers are.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: [
+            {
+                condition: "-event-wake-seer",
+                result: "-this -send-wake -select-role-seer -select-role-restricted_seer -select-role-prophet -select-role-apprentice_seer -select-role-aure_seer -show-role-this",
+            }
+        ],
+    },
+    {
+        name: "Defender",
+        "thai-name": "ผู้ปกป้อง",
+        description: "Can protect a player from Werewolf attacks, but typically cannot protect the same person two nights in a row.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Sheriff",
+        "thai-name": "นายอำเภอ",
+        description: "During daytime, can force a vote on a player. The Sheriff can choose a Deputy.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Deputy",
+        "thai-name": "ปลัดอำเภอ",
+        description: "The Deputy gains the Sheriff's abilities if the Sheriff dies.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: [
+            {
+                condition: "-none-sheriff",
+                result: "-gain-role-sheriff",
+            }
+        ],
+    },
+    {
+        name: "Apothecary",
+        "thai-name": "เภสัชกร",
+        description: "Is informed of who will be killed each night and has one potion to save and one potion to intensify the kill.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Cursed",
+        "thai-name": "ผู้ต้องสาป",
+        description: "If targeted by a Werewolf for killing, they transform into a Werewolf instead of dying.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Townfolfs",
+        abilities: undefined,
+        conditions: undefined,
+        isPrimarilyDisabled: true,
+    },
+    {
+        name: "Diseased",
+        "thai-name": "ผู้ติดเชื้อ",
+        description: "If a Werewolf kills the Diseased player, the Werewolves cannot kill on the following night.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Spirit Medium",
+        "thai-name": "ผู้สื่อวิญญาณ",
+        description: "Dead players can write notes to the Spirit Medium, providing clues to the living players.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Undertaker",
+        "thai-name": "สัปเหร่อ",
+        description: "One time per game, the undertaker can dig a grave to see the role of a dead player.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Old Hag",
+        "thai-name": "มนุษย์ยายแก่",
+        description: "At night, chooses a player who must leave the village the next day.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Old Man",
+        "thai-name": "ผู้สูงอายุ",
+        description: "Will die within 3 days.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Necromancer",
+        "thai-name": "ผู้คืนชีพคนตาย",
+        description: "Two times per game, copy an ability from a player, cannot copy from a player two times in row.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Werewolfs",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Dodger",
+        "thai-name": "ผู้หลบหลีก",
+        description: "One time per game, can send the effect received toward a player at night.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Sponge",
+        "thai-name": "ฟองน้ำ",
+        description: "During voting, if the Sponge receives the most points, the person with the next highest vote count is lynched.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Spellbinder",
+        "thai-name": "ผู้ลงมนต์",
+        description: "Wakes up first and touches one player; that player does not wake up or use their ability during that night.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Vigilante",
+        "thai-name": "ศาลเตี้ย",
+        description: "Have one time ability to kill a player during the night, if killed a townfolk, the vigilante will die afterward from guilt",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    //Wolves
+    {
+        name: "Werewolf",
+        "thai-name": "มนุษย์หมาป่า",
+        description: "Each night, collectively choose one player to eliminate.",
+        "variant-count": 10, // Default to 1
+        gem: "Werewolfs",
+        "rough-gem": "Werewolfs",
+        abilities: undefined,
+        conditions: undefined,
+        "default-amount": 2 // Set default amount for Werewolf to 2
+    },
+    {
+        name: "Alpha Werewolf",
+        "thai-name": "มนุษย์หมาป่าอัลฟ่า",
+        description: "Each night, collectively choose one player to eliminate. Can turn a player who's not being a werewolf, to be one",
+        "variant-count": 1, // Default to 1
+        gem: "Werewolfs",
+        "rough-gem": "Werewolfs",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Dire Wolf",
+        "thai-name": "หมาป่าโลกันตร์",
+        description: "Each night, along with the wolves, choose a player to eliminate. During the first night, choose a player to be your companion. You are eliminated if the player is eliminated.",
+        "variant-count": 1, // Default to 1
+        gem: "Werewolfs",
+        "rough-gem": "Werewolfs",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Guardian Wolf",
+        "thai-name": "หมาป่าผู้พิทักษ์",
+        description: "One time per game, a guardian wolf can choose a fellow werewolf to be protected from dying.",
+        "variant-count": 1, // Default to 1
+        gem: "Werewolfs",
+        "rough-gem": "Werewolfs",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Minion",
+        "thai-name": "ลูกสมุน",
+        description: "Wins with the Werewolves. Knows who the Werewolves are, but the Werewolves do not know the Minion.",
+        "variant-count": 1, // Default to 1
+        gem: "Werewolfs",
+        "rough-gem": "Werewolfs",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Mystic Wolf",
+        "thai-name": "หมาป่าลึกลับ",
+        description: "A Werewolf with a limited 2 times investigative ability, can tell the role of a non-werewolf characters.",
+        "variant-count": 1, // Default to 1
+        gem: "Werewolfs",
+        "rough-gem": "Werewolfs",
+        abilities: undefined,
+        conditions: undefined,
     },
     {
         name: "Wolf Cub",
         "thai-name": "ลูกหมาป่า",
-        description: "If the Wolf Cub dies, the Werewolves get an extra kill the following night.",
+        description: "A Werewolf with a limited 2 times investigative ability, can tell the role of a non-werewolf characters. The wolf cub cannot do killing votes, but in 3 days or all the wolves are killed, will become a werewolf",
         "variant-count": 1, // Default to 1
         gem: "Werewolfs",
         "rough-gem": "Werewolfs",
         abilities: undefined,
-        conditions: [
-            {
-                condition: "-receive-kill",
-                result: "-gain-ability-extra_kill",
-            }
-        ],
-    },
-    {
-        name: "Mystic Wolf",
-        "thai-name": "หมาป่าพยากรณ์",
-        description: "One time per game, at night, chooses a player to learn their exact role.",
-        "variant-count": 1, // Default to 1
-        gem: "Werewolfs",
-        "rough-gem": "Werewolfs",
-        abilities: [
-            {
-                name: "Mystic Sight",
-                action: "-select-any -show-role -c1 -o -night",
-            }
-        ],
         conditions: undefined,
     },
     {
-        name: "Diseased",
-        "thai-name": "ผู้ติดโรค",
-        description: "If they are killed by Werewolves, the Werewolves cannot kill the following night.",
+        name: "Nightmare Werewolf",
+        "thai-name": "หมาป่าแห่งฝันร้าย",
+        description: "Can impose a \"nightmare\" on a player, affecting their abilities to be affected on a random player instead",
         "variant-count": 1, // Default to 1
         gem: "Werewolfs",
-        "rough-gem": "Townfolks",
+        "rough-gem": "Werewolfs",
         abilities: undefined,
-        conditions: [
-            {
-                condition: "-receive-kill -gem-werewolfs",
-                result: "-cancel-next-turn-ability-devour",
-            }
-        ],
+        conditions: undefined,
     },
     {
+        name: "Dream Wolf",
+        "thai-name": "หมาป่าผู้หลับฝัน",
+        description: "A Werewolf who does not know the other Werewolves, but the other Werewolves know them.",
+        "variant-count": 1, // Default to 1
+        gem: "Werewolfs",
+        "rough-gem": "Werewolfs",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Squire",
+        "thai-name": "คหบดีชนบท",
+        description: "Know who the Werewolves are, win if the werewolves win.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Werewolfs",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Voodoo Lady",
+        "thai-name": "หญิงสาวผู้ถือตุ๊กตาต้องสาป",
+        description: "The Voodoo Lady curses a player; if that player nominates anyone for lynching, the cursed player dies.",
+        "variant-count": 1, // Default to 1
+        gem: "Townfolks",
+        "rough-gem": "Werewolfs",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    //Neutrals
+    {
         name: "Tanner",
-        "thai-name": "คนฟอกหนัง",
-        description: "Wins if they are lynched by the villagers.",
+        "thai-name": "ผู้สิ้นหวัง",
+        description: "Wins only if they are lynched by the villagers.",
         "variant-count": 1, // Default to 1
         gem: "Specials",
         "rough-gem": "Townfolks",
         abilities: undefined,
-        conditions: [
-            {
-                condition: "-receive-lynched",
-                result: "-win-this",
-            }
-        ],
+        conditions: undefined,
+    },
+    {
+        name: "Doppelgänger",
+        "thai-name": "ตัวแทน",
+        description: "On the first night, chooses another player. If that player dies, the Doppelgänger takes on their role and abilities.",
+        "variant-count": 1, // Default to 1
+        gem: "Specials",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "The Fool",
+        "thai-name": "คนบ้า",
+        description: "Wins only if they can manipulating the other villagers to be lynched to death.",
+        "variant-count": 1, // Default to 1
+        gem: "Specials",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Bookie",
+        "thai-name": "เจ้ามือแทงพนัน",
+        description: "At night, guess who will be lynched on the next day, Wins by correctly betting on who will be lynched.",
+        "variant-count": 1, // Default to 1
+        gem: "Specials",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Sleuth",
+        "thai-name": "นักสืบ",
+        description: "Can reveal themselves to guess roles; if successful, they win alone.",
+        "variant-count": 1, // Default to 1
+        gem: "Specials",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Pacifist",
+        "thai-name": "ผู้รักสันติ",
+        description: "Can make another player's vote count as two, or prevent their own vote from counting.",
+        "variant-count": 1, // Default to 1
+        gem: "Specials",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Nostradamus",
+        "thai-name": "นอสตราดามุส",
+        description: "One time per game, wakes up and can look at a set number of cards; the last card they look at determines their winning team.",
+        "variant-count": 1, // Default to 1
+        gem: "Specials",
+        "rough-gem": "Townfolks",
+        abilities: undefined,
+        conditions: undefined,
+    },
+    {
+        name: "Reaper",
+        "thai-name": "ยมทูต",
+        description: "A standalone killer who wins if they are one of the last two players alive.",
+        "variant-count": 1, // Default to 1
+        gem: "Specials",
+        "rough-gem": "Werewolfs",
+        abilities: undefined,
+        conditions: undefined,
     },
     {
         name: "Cult Leader",
-        "thai-name": "หัวหน้าลัทธิ",
+        "thai-name": "ผู้นำลัทธิ",
         description: "Each night, can add a player to their cult. Wins if all remaining players are part of their cult.",
         "variant-count": 1, // Default to 1
         gem: "Specials",
@@ -642,5 +880,5 @@ export const ROLE_TEMPLATES = [
         abilities: undefined,
         conditions: undefined,
         isPrimarilyDisabled: true,
-    },
+    }
 ];

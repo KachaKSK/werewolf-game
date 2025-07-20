@@ -1,7 +1,7 @@
 // src/utils/helpers.js
 // Contains various helper functions used throughout the application.
 
-import { ROLE_IMAGE_BASE_PATH, GEM_DATA, ROLE_TEMPLATES, NOBODY_IMAGE_PATH } from '../config/constants.js';
+import { ROLE_IMAGE_BASE_PATH, GEM_DATA, ROLE_TEMPLATES } from '../config/constants.js';
 
 let imageCache = new Map(); // Global image cache
 
@@ -54,25 +54,25 @@ export function generateUuidFallback() {
  */
 export function hexToRgba(hex, alpha) {
     let r = 0, g = 0, b = 0;
-
     // Handle #RGB format
     if (hex.length === 4) {
         r = parseInt(hex[1] + hex[1], 16);
         g = parseInt(hex[2] + hex[2], 16);
         b = parseInt(hex[3] + hex[3], 16);
-    } else if (hex.length === 7) {
+    }
+    // Handle #RRGGBB format
+    else if (hex.length === 7) {
         r = parseInt(hex.substring(1, 3), 16);
         g = parseInt(hex.substring(3, 5), 16);
         b = parseInt(hex.substring(5, 7), 16);
     }
-
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 /**
- * Converts an image URL to a Base64 string for embedding.
- * Caches images to avoid repeated fetches.
- * @param {string} url - The URL of the image.
+ * Fetches an image and converts it to a Base64 string for caching.
+ * Uses a global cache to avoid refetching images.
+ * @param {string} url - The URL of the image to fetch.
  * @returns {Promise<string>} A promise that resolves with the Base64 image string.
  */
 export async function getBase64Image(url) {
@@ -83,15 +83,15 @@ export async function getBase64Image(url) {
     try {
         const response = await fetch(url);
         if (!response.ok) {
+            console.warn(`[WARNING] Failed to fetch image from ${url}. Status: ${response.status}`);
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const blob = await response.blob();
-        const reader = new FileReader();
         return new Promise((resolve, reject) => {
+            const reader = new FileReader();
             reader.onloadend = () => {
-                const base64String = reader.result;
-                imageCache.set(url, base64String); // Cache the image
-                resolve(base64String);
+                imageCache.set(url, reader.result); // Cache the result
+                resolve(reader.result);
             };
             reader.onerror = reject;
             reader.readAsDataURL(blob);
@@ -106,40 +106,23 @@ export async function getBase64Image(url) {
  * Gets the image path for a given role name, considering variants.
  * @param {string} roleName - The name of the role.
  * @param {object} currentRoomData - The current room data, used to get the synchronized image map.
- * @returns {Promise<string>} The full path to the role image, or the Nobody image path if not found.
+ * @returns {string} The full path to the role image.
  */
-export async function getRoleImagePath(roleName, currentRoomData) {
+export function getRoleImagePath(roleName, currentRoomData) {
+    // Ensure roleName is formatted for filename (e.g., "Wolf Cub" -> "wolf-cub")
     const formattedRoleName = roleName.toLowerCase().replace(/\s/g, '-');
-    let imageUrl = `${ROLE_IMAGE_BASE_PATH}${formattedRoleName}-v-1.jpeg`; // Default to variant 1
 
-    // 1. Try to get the chosen image URL from currentRoomData's synchronized image map
+    // Attempt to get the chosen image URL from currentRoomData's synchronized image map
     if (currentRoomData && currentRoomData.game_data && currentRoomData.game_data.role_image_map) {
         const chosenUrl = currentRoomData.game_data.role_image_map[roleName];
         if (chosenUrl) {
-            try {
-                // Attempt to fetch the chosen image
-                await getBase64Image(chosenUrl); // Just try to load to check existence
-                return chosenUrl; // If successful, use this URL
-            } catch (error) {
-                console.warn(`[WARNING] Failed to fetch chosen image from ${chosenUrl}. Falling back to default variant or Nobody.`, error);
-                // Fall through to try default variant
-            }
+            return chosenUrl;
         }
     }
 
-    // 2. If no chosen URL or fetch failed, try the default variant for the role
-    try {
-        await getBase64Image(imageUrl); // Attempt to fetch the default role image
-        console.log(`[DEBUG] Displaying static image for ${roleName}: ${imageUrl}`);
-        return imageUrl; // If successful, use the default variant URL
-    } catch (error) {
-        console.warn(`[WARNING] Failed to fetch default image for ${roleName} from ${imageUrl}. Falling back to Nobody.`, error);
-        // Fall through to Nobody image
-    }
-
-    // 3. If all attempts fail, use the Nobody image
-    console.log(`[DEBUG] Displaying Nobody image for ${roleName}: ${NOBODY_IMAGE_PATH}`);
-    return NOBODY_IMAGE_PATH;
+    // Fallback to default path if not found in map or no room data
+    // Using .jpeg extension based on user's clarification and error logs
+    return `${ROLE_IMAGE_BASE_PATH}${formattedRoleName}-v-1.jpeg`; // Changed to .jpeg
 }
 
 /**
