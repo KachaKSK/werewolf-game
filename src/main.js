@@ -58,25 +58,33 @@ async function initializeApp() {
     console.log(`[DEBUG] Local ID: ${localId}`);
 
     playerName = localStorage.getItem('playerName');
+    console.log(`[DEBUG] Player name from localStorage: ${playerName}`);
+
+    // Always show the player name input view first.
+    // The player name input will be pre-filled if a name exists in localStorage.
+    showView('player-name');
     if (playerName) {
         playerNameInput.value = playerName;
-        showView('room-selection');
-        showTab('create-room'); // Default to create room tab
-    } else {
-        showView('player-name');
+        // Do not automatically transition to room-selection here.
+        // The transition will happen when the user clicks "Set Name" or "Join Room".
     }
 
-    // Check for existing room ID in local storage or URL
+    // Check for existing room ID in local storage or URL.
+    // This logic will now run *after* the player name view is displayed.
+    // If a room ID is found, the user will be prompted to join after setting their name.
     const urlParams = new URLSearchParams(window.location.search);
     const storedRoomId = localStorage.getItem('currentRoomId');
     const urlRoomId = urlParams.get('room');
 
     if (urlRoomId) {
         roomIdInput.value = urlRoomId;
-        await handleJoinRoom();
+        // Do not automatically join here. The user will manually click "Join Room"
+        // after seeing their name pre-filled or entering a new one.
+        showMessage(`Room ID from URL: ${urlRoomId}. Please click 'Join Room' to enter.`, 'info');
     } else if (storedRoomId) {
         roomIdInput.value = storedRoomId;
-        await handleJoinRoom();
+        // Do not automatically join here.
+        showMessage(`Previous room ID found: ${storedRoomId}. Please click 'Join Room' to re-enter.`, 'info');
     }
 
     setupEventListeners();
@@ -90,7 +98,7 @@ async function handleSetPlayerName() {
         playerName = name;
         localStorage.setItem('playerName', playerName);
         showMessage(`Player name set to: ${playerName}`, 'success');
-        showView('room-selection');
+        showView('room-selection'); // Transition to room selection after name is set
         showTab('create-room'); // Default to create room tab
     } else {
         showMessage('Please enter a player name.', 'error');
