@@ -2,7 +2,7 @@
 // Contains functions for interacting with Supabase for room management.
 
 import { showMessage, generateRoomId, getRoleTemplate, standardizeRoleName, getRoleImagePath, shuffleArray } from '../utils/helpers.js';
-import { ROLE_TEMPLATES, ROOM_BACKGROUNDS, ROLE_IMAGE_BASE_PATH } from '../config/constants.js';
+import { ROLE_TEMPLATES, ROOM_BACKGROUNDS, ROLE_IMAGE_BASE_PATH, GEM_DATA } from '../config/constants.js';
 
 /**
  * Generates the center_role_pool array based on current role settings.
