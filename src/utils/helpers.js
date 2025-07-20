@@ -40,8 +40,7 @@ export function generateShortId() {
  */
 export function generateUuidFallback() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0,
-            v = c === 'x' ? r : (r & 0x3 | 0x8);
+        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
     });
 }
@@ -53,37 +52,25 @@ export function generateUuidFallback() {
  * @returns {string} The RGBA color string.
  */
 export function hexToRgba(hex, alpha) {
-    let r = 0, g = 0, b = 0;
-    // Handle #RGB format
-    if (hex.length === 4) {
-        r = parseInt(hex[1] + hex[1], 16);
-        g = parseInt(hex[2] + hex[2], 16);
-        b = parseInt(hex[3] + hex[3], 16);
-    }
-    // Handle #RRGGBB format
-    else if (hex.length === 7) {
-        r = parseInt(hex.substring(1, 3), 16);
-        g = parseInt(hex.substring(3, 5), 16);
-        b = parseInt(hex.substring(5, 7), 16);
-    }
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 /**
- * Fetches an image and converts it to a Base64 string for caching.
- * Uses a global cache to avoid refetching images.
- * @param {string} url - The URL of the image to fetch.
- * @returns {Promise<string>} A promise that resolves with the Base64 image string.
+ * Converts an image from a URL to a Base64 string.
+ * Uses a global cache to avoid re-fetching images.
+ * @param {string} url - The URL of the image.
+ * @returns {Promise<string>} A promise that resolves with the Base64 data URL.
  */
 export async function getBase64Image(url) {
     if (imageCache.has(url)) {
         return imageCache.get(url);
     }
-
     try {
         const response = await fetch(url);
         if (!response.ok) {
-            console.warn(`[WARNING] Failed to fetch image from ${url}. Status: ${response.status}`);
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const blob = await response.blob();
@@ -121,7 +108,7 @@ export function getRoleImagePath(roleName, currentRoomData) {
     }
 
     // Fallback to default path if not found in map or no room data
-    // Using .jpeg extension as per user's clarification
+    // Using .jpeg extension based on user's clarification and error logs
     return `${ROLE_IMAGE_BASE_PATH}${formattedRoleName}-v-1.jpeg`; // Changed to .jpeg
 }
 
@@ -131,5 +118,5 @@ export function getRoleImagePath(roleName, currentRoomData) {
  * @returns {object|undefined} The role template object, or undefined if not found.
  */
 export function getRoleTemplate(roleName) {
-    return ROLE_TEMPLATES.find(role => role.name === roleName);
+    return ROLE_TEMPLATES.find(template => template.name === roleName);
 }
