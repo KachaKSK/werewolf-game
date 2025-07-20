@@ -116,11 +116,18 @@ async function handleSetPlayerName() {
 }
 
 async function handleCreateRoom() {
-    const roomName = newRoomNameInput.value.trim();
+    let roomName = newRoomNameInput.value.trim();
+    // If roomName is empty, use the placeholder content as the room name
     if (!roomName) {
-        showMessage('Please enter a room name.', 'error');
+        roomName = newRoomNameInput.placeholder.trim();
+        console.log(`[DEBUG] Room name input was empty, using placeholder: "${roomName}"`);
+    }
+
+    if (!roomName) { // Fallback if placeholder is also empty
+        showMessage('Please enter a room name or ensure the placeholder has content.', 'error');
         return;
     }
+
     if (!playerName) {
         showMessage('Please set your player name first.', 'error');
         showView('player-name');
