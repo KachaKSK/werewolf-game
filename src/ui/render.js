@@ -298,14 +298,18 @@ export async function renderGemSettings(roleSettings, isHost, updateRoleAmountCa
             minusButton.dataset.gemName = gemName;
             minusButton.dataset.roleName = roleName;
             minusButton.dataset.action = 'decrementGem';
-            // Removed: minusButton.disabled = !isHost; // Now all players can click
-            minusButton.addEventListener('click', () => updateRoleAmountCallback(roleName, -1));
+            minusButton.style.pointerEvents = 'auto'; // Ensure it's clickable
+            minusButton.addEventListener('click', () => {
+                console.log(`[DEBUG] Minus button clicked for role: ${roleName}`); // Add log
+                updateRoleAmountCallback(roleName, -1);
+            });
             counterArea.appendChild(minusButton);
 
             // Amount display
             const amountSpan = document.createElement('span');
             amountSpan.className = 'text-lg font-bold text-gray-900 min-w-[20px] text-center';
             amountSpan.textContent = amount;
+            amountSpan.style.pointerEvents = 'none'; // Amount display should not be clickable
             counterArea.appendChild(amountSpan);
 
             // Plus button
@@ -315,8 +319,11 @@ export async function renderGemSettings(roleSettings, isHost, updateRoleAmountCa
             plusButton.dataset.gemName = gemName;
             plusButton.dataset.roleName = roleName;
             plusButton.dataset.action = 'incrementGem';
-            // Removed: plusButton.disabled = !isHost; // Now all players can click
-            plusButton.addEventListener('click', () => updateRoleAmountCallback(roleName, 1));
+            plusButton.style.pointerEvents = 'auto'; // Ensure it's clickable
+            plusButton.addEventListener('click', () => {
+                console.log(`[DEBUG] Plus button clicked for role: ${roleName}`); // Add log
+                updateRoleAmountCallback(roleName, 1);
+            });
             counterArea.appendChild(plusButton);
 
             gemItem.appendChild(counterArea);
@@ -326,6 +333,7 @@ export async function renderGemSettings(roleSettings, isHost, updateRoleAmountCa
                 const toggleDisableButton = document.createElement('button');
                 toggleDisableButton.className = `ml-2 px-2 py-1 rounded-md text-sm ${isDisabled ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-yellow-500 hover:bg-yellow-600 text-white'}`;
                 toggleDisableButton.textContent = isDisabled ? 'Enable' : 'Disable';
+                toggleDisableButton.style.pointerEvents = 'auto'; // Ensure clickable
                 toggleDisableButton.addEventListener('click', () => toggleRoleDisabledCallback(roleName));
                 gemItem.appendChild(toggleDisableButton);
 
@@ -333,6 +341,7 @@ export async function renderGemSettings(roleSettings, isHost, updateRoleAmountCa
                 const removeButton = document.createElement('button');
                 removeButton.className = 'ml-2 px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm';
                 removeButton.textContent = 'Remove';
+                removeButton.style.pointerEvents = 'auto'; // Ensure clickable
                 removeButton.addEventListener('click', () => removeGemFromSettingsCallback(roleName));
                 gemItem.appendChild(removeButton);
             }
