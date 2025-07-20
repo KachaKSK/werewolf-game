@@ -88,7 +88,10 @@ async function initializeApp() {
  * @param {string} roomId - The ID of the room to listen to.
  */
 function listenToRoom(roomId) {
-    console.log(`[DEBUG] [listenToRoom] Attempting to listen to room: ${roomId}`);
+    // Explicitly convert roomId to a string to prevent [object Object] issues
+    const roomIdString = String(roomId);
+    console.log(`[DEBUG] [listenToRoom] Attempting to listen to room: ${roomIdString}`);
+
     if (roomSubscription) {
         supabase.removeChannel(roomSubscription);
         roomSubscription = null;
@@ -96,16 +99,16 @@ function listenToRoom(roomId) {
     }
 
     roomSubscription = supabase
-        .channel(`room:${roomId}`)
+        .channel(`room:${roomIdString}`) // Use the string version here
         .on(
             'postgres_changes',
-            { event: '*', schema: 'public', table: 'Rooms', filter: `id=eq.${roomId}` },
+            { event: '*', schema: 'public', table: 'Rooms', filter: `id=eq.${roomIdString}` }, // And here
             async (payload) => { // Made async to await fetchRoomData
                 console.log(`[DEBUG] [Realtime Event Received] Type: ${payload.eventType}, New:`, payload.new, 'Old:', payload.old);
 
                 if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
                     // Always refetch the full room data to ensure consistency
-                    const updatedRoomData = await fetchRoomData(supabase, roomId);
+                    const updatedRoomData = await fetchRoomData(supabase, roomIdString); // And here
                     if (updatedRoomData) {
                         const playersArray = updatedRoomData.players || [];
                         const isCurrentUserStillInRoom = playersArray.some(player => player["local-id"] === localId);
@@ -128,7 +131,7 @@ function listenToRoom(roomId) {
                         console.log("[DEBUG] [listenToRoom] Realtime update (refetched) - FULL currentRoomData:", JSON.stringify(currentRoomData, null, 2)); // Added detailed logging
                         updateRoomUI(currentRoomData, localId, userId, (id) => kickPlayer(supabase, currentRoomId, userId, isHost, id), currentPlayerRoles, renderPlayerRoleCards);
                     } else {
-                        console.warn(`[WARN] [listenToRoom] Refetch of room ${roomId} returned null after update event.`);
+                        console.warn(`[WARN] [listenToRoom] Refetch of room ${roomIdString} returned null after update event.`);
                         // If refetch fails, treat as if room was deleted or became inaccessible
                         showMessage("Room data could not be fetched. You may have been disconnected.", 'error');
                         if (roomSubscription) {
@@ -154,19 +157,19 @@ function listenToRoom(roomId) {
         )
         .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
-                console.log(`[DEBUG] [listenToRoom] Subscribed to room ${roomId} changes.`);
+                console.log(`[DEBUG] [listenToRoom] Subscribed to room ${roomIdString} changes.`);
             } else if (status === 'CHANNEL_ERROR') {
-                console.error(`[ERROR] [listenToRoom] Error subscribing to room ${roomId}.`);
-                showMessage(`Error subscribing to room ${roomId}.`, 'error');
+                console.error(`[ERROR] [listenToRoom] Error subscribing to room ${roomIdString}.`);
+                showMessage(`Error subscribing to room ${roomIdString}.`, 'error');
             }
         });
 
-    currentRoomId = roomId;
-    roomIdInput.value = roomId;
+    currentRoomId = roomIdString;
+    roomIdInput.value = roomIdString;
     console.log(`[DEBUG] [listenToRoom] currentRoomId set to: ${currentRoomId}`);
 
     // Always fetch initial data for the room immediately
-    fetchRoomData(supabase, roomId).then(data => {
+    fetchRoomData(supabase, roomIdString).then(data => {
         currentRoomData = data; // Update global room data
         isHost = (localId === currentRoomData?.host_id); // Update global isHost status
         console.log("[DEBUG] [listenToRoom] Initial fetch - FULL currentRoomData:", JSON.stringify(currentRoomData, null, 2)); // Added detailed logging
@@ -261,7 +264,7 @@ roleListDiv.addEventListener('click', (event) => {
     const parentRoleControls = target.closest('.role-controls');
 
     // Only allow interaction if currentRoomData is available and it's a control button
-    if (isControlButton && parentRoleControls && currentRoomData) {
+    if (currentRoomData && isControlButton && parentRoleControls) {
         const roleName = target.dataset.roleName;
         const action = target.dataset.action;
         console.log(`[DEBUG] Role control clicked: Role: ${roleName}, Action: ${action}`);
