@@ -29,435 +29,396 @@ import {
     showView, showTab
 } from './ui/views.js';
 import {
-    showRolesOverlay as uiShowRolesOverlay, hideRolesOverlay,
-    showDetailedRoleOverlay, hideDetailedRoleOverlay,
-    showAddGemModal as uiShowAddGemModal, hideAddGemModal,
-    hideRenameRoomModal, cancelRenameRoom as uiCancelRenameRoom,
+    showRolesOverlay as uiShowRolesOverlay, hideRolesOverlay as uiHideRolesOverlay,
+    showDetailedRoleOverlay as uiShowDetailedRoleOverlay, hideDetailedRoleOverlay as uiHideDetailedRoleOverlay,
+    showAddGemModal as uiShowAddGemModal, hideAddGemModal as uiHideAddGemModal,
+    showRenameRoomModal as uiShowRenameRoomModal, hideRenameRoomModal as uiHideRenameRoomModal,
     prefillRenameRoomInput
 } from './ui/modals.js';
+import { ROLE_TEMPLATES, GEM_DATA } from './config/constants.js'; // Import ROLE_TEMPLATES and GEM_DATA
 
-// Global State Variables
-let supabase = null;
-let userId = null; // This will now be the 6-digit short ID
-let localId = null; // Stores the full UUID for this browser instance
-let userName = null;
+let supabase;
 let currentRoomId = null;
-let roomSubscription = null;
-let isHost = false; // This will be updated by updateRoomUI
-let currentRoomData = null; // Stores the latest room data from Supabase
-let currentPlayerRoles = []; // To track current player's roles for animation logic
+let userId = null; // Short ID
+let localId = null; // Full UUID for host check
+let roomChannel = null;
+let playerName = '';
+let currentRoomData = null; // Store the latest room data
 
-/**
- * Initializes Supabase client and generates a local user ID.
- * Each new window/tab/device will have a distinct, locally generated userId.
- */
+
+// --- Initialization ---
 async function initializeApp() {
-    try {
-        supabase = initializeSupabaseClient();
-        localId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-                  ? crypto.randomUUID()
-                  : generateUuidFallback();
-        userId = generateShortId();
-        console.log("[DEBUG] App initialized. Local UUID (localId):", localId, "Short ID (userId):", userId);
-        showMessage("Supabase initialized and ready.", 'success');
+    console.log("[DEBUG] Initializing app...");
+    supabase = initializeSupabaseClient();
+    localId = localStorage.getItem('localId');
+    if (!localId) {
+        localId = generateUuidFallback();
+        localStorage.setItem('localId', localId);
+    }
+    console.log(`[DEBUG] Local ID: ${localId}`);
 
-        // --- Realtime Connection Test ---
-        const testChannel = supabase.channel('test_channel');
-        testChannel.subscribe((status) => {
-            if (status === 'SUBSCRIBED') {
-                console.log('[DEBUG] [Realtime Test] Successfully subscribed to test_channel. Realtime connection appears to be working.');
-                testChannel.unsubscribe();
-            } else if (status === 'CHANNEL_ERROR') {
-                console.error('[DEBUG] [Realtime Test] Error subscribing to test_channel. Realtime connection might be problematic.');
-            } else {
-                console.log(`[DEBUG] [Realtime Test] Test channel status: ${status}`);
-            }
-        });
-        // --------------------------------
-
+    playerName = localStorage.getItem('playerName');
+    if (playerName) {
+        playerNameInput.value = playerName;
+        showView('room-selection');
+        showTab('create-room'); // Default to create room tab
+    } else {
         showView('player-name');
-    } catch (error) {
-        console.error("[ERROR] Error initializing app:", error);
-        showMessage(`Error initializing app: ${error.message}`, 'error');
-    }
-}
-
-/**
- * Sets up a real-time listener for a specific room using Supabase.
- * @param {string} roomId - The ID of the room to listen to.
- */
-function listenToRoom(roomId) {
-    console.log(`[DEBUG] [listenToRoom] Attempting to listen to room: ${roomId}`);
-    if (roomSubscription) {
-        supabase.removeChannel(roomSubscription);
-        roomSubscription = null;
-        console.log('[DEBUG] [listenToRoom] Existing room subscription removed.');
     }
 
-    roomSubscription = supabase
-        .channel(`room:${roomId}`)
-        .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'Rooms', filter: `id=eq.${roomId}` },
-            async (payload) => { // Made async to await fetchRoomData
-                console.log(`[DEBUG] [Realtime Event Received] Type: ${payload.eventType}, New:`, payload.new, 'Old:', payload.old);
+    // Check for existing room ID in local storage or URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const storedRoomId = localStorage.getItem('currentRoomId');
+    const urlRoomId = urlParams.get('room');
 
-                if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-                    // Always refetch the full room data to ensure consistency
-                    const updatedRoomData = await fetchRoomData(supabase, roomId);
-                    if (updatedRoomData) {
-                        const playersArray = updatedRoomData.players || [];
-                        const isCurrentUserStillInRoom = playersArray.some(player => player["local-id"] === localId);
+    if (urlRoomId) {
+        roomIdInput.value = urlRoomId;
+        await handleJoinRoom();
+    } else if (storedRoomId) {
+        roomIdInput.value = storedRoomId;
+        await handleJoinRoom();
+    }
 
-                        if (!isCurrentUserStillInRoom) {
-                            console.log(`[DEBUG] [KICKED_DETECTION] Current user ${localId} no longer in room ${currentRoomId}. Forcing exit.`);
-                            showMessage("You have been removed from the room!", 'error');
-                            if (roomSubscription) {
-                                supabase.removeChannel(roomSubscription);
-                                roomSubscription = null;
-                            }
-                            updateRoomUI(null, localId, userId, (id) => kickPlayer(supabase, currentRoomId, userId, isHost, id), currentPlayerRoles, renderPlayerRoleCards);
-                            currentRoomId = null;
-                            isHost = false; // Reset host status
-                            showView('room-selection');
-                            return;
-                        }
-                        currentRoomData = updatedRoomData; // Update global room data with full data
-                        isHost = (localId === currentRoomData.host_id); // Update global isHost status
-                        console.log("[DEBUG] [listenToRoom] Realtime update (refetched) - FULL currentRoomData:", JSON.stringify(currentRoomData, null, 2)); // Added detailed logging
-                        updateRoomUI(currentRoomData, localId, userId, (id) => kickPlayer(supabase, currentRoomId, userId, isHost, id), currentPlayerRoles, renderPlayerRoleCards);
-                    } else {
-                        console.warn(`[WARN] [listenToRoom] Refetch of room ${roomId} returned null after update event.`);
-                        // If refetch fails, treat as if room was deleted or became inaccessible
-                        showMessage("Room data could not be fetched. You may have been disconnected.", 'error');
-                        if (roomSubscription) {
-                            supabase.removeChannel(roomSubscription);
-                            roomSubscription = null;
-                        }
-                        updateRoomUI(null, localId, userId, (id) => kickPlayer(supabase, currentRoomId, userId, isHost, id), currentPlayerRoles, renderPlayerRoleCards);
-                        currentRoomId = null;
-                        isHost = false;
-                        showView('room-selection');
-                    }
-                } else if (payload.eventType === 'DELETE') {
-                    console.log("[DEBUG] [listenToRoom] Room does not exist or was deleted.");
-                    showMessage("Room does not exist or was deleted. You have been disconnected from this room.", 'error');
-                    // Pass current localId and userId to updateRoomUI for correct state reset
-                    updateRoomUI(null, localId, userId, (id) => kickPlayer(supabase, currentRoomId, userId, isHost, id), currentPlayerRoles, renderPlayerRoleCards);
-                    currentRoomId = null;
-                    isHost = false; // Reset host status
-                    showView('room-selection');
-                    return;
-                }
-            }
-        )
-        .subscribe((status) => {
-            if (status === 'SUBSCRIBED') {
-                console.log(`[DEBUG] [listenToRoom] Subscribed to room ${roomId} changes.`);
-            } else if (status === 'CHANNEL_ERROR') {
-                console.error(`[ERROR] [listenToRoom] Error subscribing to room ${roomId}.`);
-                showMessage(`Error subscribing to room ${roomId}.`, 'error');
-            }
-        });
-
-    currentRoomId = roomId;
-    roomIdInput.value = roomId;
-    console.log(`[DEBUG] [listenToRoom] currentRoomId set to: ${currentRoomId}`);
-
-    // Always fetch initial data for the room immediately
-    fetchRoomData(supabase, roomId).then(data => {
-        currentRoomData = data; // Update global room data
-        isHost = (localId === currentRoomData?.host_id); // Update global isHost status
-        console.log("[DEBUG] [listenToRoom] Initial fetch - FULL currentRoomData:", JSON.stringify(currentRoomData, null, 2)); // Added detailed logging
-        updateRoomUI(currentRoomData, localId, userId, (id) => kickPlayer(supabase, currentRoomId, userId, isHost, id), currentPlayerRoles, renderPlayerRoleCards);
-    });
+    setupEventListeners();
+    console.log("[DEBUG] App initialized.");
 }
 
-// Event Listeners
-setPlayerNameBtn.addEventListener('click', () => {
+// --- Event Handlers ---
+async function handleSetPlayerName() {
     const name = playerNameInput.value.trim();
     if (name) {
-        userName = name;
-        userId = generateShortId();
-        playerNameInput.disabled = true;
-        setPlayerNameBtn.disabled = true;
-        showMessage(`Your name is set to: ${userName} (ID: ${userId})`, 'info');
+        playerName = name;
+        localStorage.setItem('playerName', playerName);
+        showMessage(`Player name set to: ${playerName}`, 'success');
         showView('room-selection');
+        showTab('create-room'); // Default to create room tab
     } else {
-        showMessage("Please enter a valid name.", 'error');
+        showMessage('Please enter a player name.', 'error');
     }
-});
+}
 
-// Fixed tab switching event listeners
-createRoomTabBtn.addEventListener('click', () => showTab('create-room'));
-joinRoomTabBtn.addEventListener('click', () => showTab('join-room'));
-
-
-createRoomBtn.addEventListener('click', async () => {
-    // Pass currentRoomData (even if null initially) to createRoom for initial setup
-    const newId = await createRoom(supabase, userName, userId, localId, newRoomNameInput.value); // Removed currentRoomData as it's not used in createRoom service
-    if (newId) {
-        listenToRoom(newId);
-        showView('my-room');
+async function handleCreateRoom() {
+    const roomName = newRoomNameInput.value.trim();
+    if (!roomName) {
+        showMessage('Please enter a room name.', 'error');
+        return;
     }
-});
-
-joinRoomBtn.addEventListener('click', async () => {
-    // Pass currentRoomData to joinRoom
-    const joined = await joinRoom(supabase, userName, userId, localId, roomIdInput.value, currentRoomData);
-    if (joined) {
-        listenToRoom(roomIdInput.value);
-        showView('my-room');
+    if (!playerName) {
+        showMessage('Please set your player name first.', 'error');
+        showView('player-name');
+        return;
     }
-});
 
-leaveRoomBtn.addEventListener('click', async () => {
-    // Pass current isHost to leaveRoom
-    await leaveRoom(supabase, currentRoomId, userId, localId, isHost);
-    // State reset and view change handled within leaveRoom and updateRoomUI
-});
+    try {
+        const newRoom = await createRoom(supabase, roomName, localId, playerName);
+        if (newRoom) {
+            currentRoomId = newRoom.id;
+            userId = newRoom.players[0].player_id; // Host's short ID
+            localStorage.setItem('currentRoomId', currentRoomId);
+            localStorage.setItem('userId', userId); // Store short ID
+            history.pushState(null, '', `?room=${currentRoomId}`); // Update URL
+            subscribeToRoomChanges(currentRoomId);
+            showMessage(`Room "${roomName}" created!`, 'success');
+            showView('my-room');
+        }
+    } catch (error) {
+        console.error("[ERROR] Error creating room:", error);
+        showMessage(`Error creating room: ${error.message}`, 'error');
+    }
+}
 
-incrementCounterBtn.addEventListener('click', () => {
-    console.log("[DEBUG] Increment Counter button clicked.");
-    incrementCounter(supabase, currentRoomId, localId, userName, currentRoomData);
-});
-generateRandomBtn.addEventListener('click', () => {
-    console.log("[DEBUG] Generate Random button clicked.");
-    generateRandomValue(supabase, currentRoomId, localId, userName, currentRoomData);
-});
+async function handleJoinRoom() {
+    const roomId = roomIdInput.value.trim();
+    if (!roomId) {
+        showMessage('Please enter a room ID.', 'error');
+        return;
+    }
+    if (!playerName) {
+        showMessage('Please set your player name first.', 'error');
+        showView('player-name');
+        return;
+    }
 
-renameRoomTitleBtn.addEventListener('click', () => {
-    if (renameRoomTitle(currentRoomData, isHost)) {
+    try {
+        const joinResult = await joinRoom(supabase, roomId, localId, playerName);
+        if (joinResult) {
+            currentRoomId = roomId;
+            userId = joinResult.player_id; // Get the short ID assigned by the room
+            localStorage.setItem('currentRoomId', currentRoomId);
+            localStorage.setItem('userId', userId); // Store short ID
+            history.pushState(null, '', `?room=${currentRoomId}`); // Update URL
+            subscribeToRoomChanges(currentRoomId);
+            showMessage(`Joined room "${roomId}"!`, 'success');
+            showView('my-room');
+        }
+    } catch (error) {
+        console.error("[ERROR] Error joining room:", error);
+        showMessage(`Error joining room: ${error.message}`, 'error');
+    }
+}
+
+async function handleLeaveRoom() {
+    if (!currentRoomId || !userId) {
+        showMessage('Not in a room to leave.', 'info');
+        return;
+    }
+
+    try {
+        await leaveRoom(supabase, currentRoomId, userId, localId);
+        if (roomChannel) {
+            await roomChannel.unsubscribe();
+            supabase.removeChannel(roomChannel);
+            roomChannel = null;
+            console.log(`[DEBUG] Unsubscribed from room ${currentRoomId}`);
+        }
+        localStorage.removeItem('currentRoomId');
+        localStorage.removeItem('userId');
+        currentRoomId = null;
+        userId = null;
+        currentRoomData = null; // Clear room data
+        history.pushState(null, '', window.location.pathname); // Clear URL param
+        showMessage('Left the room.', 'info');
+        showView('room-selection');
+        showTab('create-room'); // Default to create room tab
+    } catch (error) {
+        console.error("[ERROR] Error leaving room:", error);
+        showMessage(`Error leaving room: ${error.message}`, 'error');
+    }
+}
+
+async function handleIncrementCounter() {
+    if (currentRoomId && currentRoomData) {
+        await incrementCounter(supabase, currentRoomId, currentRoomData.game_data?.shared_counter || 0);
+    } else {
+        showMessage('Please join a room first.', 'error');
+    }
+}
+
+async function handleGenerateRandom() {
+    if (currentRoomId && currentRoomData) {
+        await generateRandomValue(supabase, currentRoomId);
+    } else {
+        showMessage('Please join a room first.', 'error');
+    }
+}
+
+async function handleRenameRoomTitle() {
+    if (currentRoomId && currentRoomData && currentRoomData.host_id === localId) {
+        uiShowRenameRoomModal();
         prefillRenameRoomInput();
-        renameRoomModal.classList.add('active');
-    }
-});
-
-confirmRenameBtn.addEventListener('click', async () => {
-    const success = await serviceConfirmRenameRoom(supabase, currentRoomId, currentRoomData, renameRoomInput.value);
-    if (success) {
-        hideRenameRoomModal();
-    }
-});
-cancelRenameBtn.addEventListener('click', uiCancelRenameRoom);
-renameRoomModal.addEventListener('click', (event) => {
-    if (event.target === renameRoomModal) {
-        hideRenameRoomModal();
-    }
-});
-
-playerListDiv.addEventListener('click', (event) => {
-    if (event.target.classList.contains('kick-player-btn')) {
-        const playerIdToKick = event.target.dataset.playerId;
-        if (playerIdToKick) {
-            // Pass current isHost to kickPlayer
-            kickPlayer(supabase, currentRoomId, userId, isHost, playerIdToKick);
-        }
-    }
-});
-
-roleListDiv.addEventListener('click', (event) => {
-    const target = event.target;
-    const isControlButton = target.classList.contains('role-control-button') || target.classList.contains('disable-role-button');
-    const parentRoleControls = target.closest('.role-controls');
-
-    // Only allow interaction if currentRoomData is available and it's a control button
-    if (isControlButton && parentRoleControls && currentRoomData) {
-        const roleName = target.dataset.roleName;
-        const action = target.dataset.action;
-        console.log(`[DEBUG] Role control clicked: Role: ${roleName}, Action: ${action}`);
-
-        if (roleName && action) {
-            const roleTemplate = ROLE_TEMPLATES.find(r => r.name === roleName);
-            if (roleTemplate && roleTemplate.gem === "None" && action === 'toggleDisable') {
-                showMessage(`Roles with gem "None" cannot be disabled/enabled.`, 'info');
-                return;
-            }
-
-            // Role counter buttons are now editable by all players, so no !isHost check here
-            if (action === 'increment') {
-                updateRoleAmount(supabase, currentRoomId, currentRoomData, roleName, 1);
-            } else if (action === 'decrement') {
-                updateRoleAmount(supabase, currentRoomId, currentRoomData, roleName, -1);
-            } else if (action === 'toggleDisable') {
-                toggleRoleDisabled(supabase, currentRoomId, currentRoomData, roleName);
-            }
-        }
-    } else if (!currentRoomData) {
-        console.warn("[WARN] Role control clicked but currentRoomData is not available.");
-        showMessage("Room data not loaded yet. Please wait.", 'info');
-    }
-});
-
-gemSettingsList.addEventListener('click', (event) => {
-    const target = event.target;
-    const gemName = target.dataset.gemName;
-    const action = target.dataset.action;
-    console.log(`[DEBUG] Gem control clicked: Gem: ${gemName}, Action: ${action}, IsHost: ${isHost}`);
-
-    // Only allow interaction if currentRoomData is available AND current user is host
-    if (currentRoomData && isHost && gemName && action) {
-        if (action === 'incrementGem') {
-            updateGemCount(supabase, currentRoomId, currentRoomData, gemName, 1);
-        } else if (action === 'decrementGem') {
-            updateGemCount(supabase, currentRoomId, currentRoomData, gemName, -1);
-        } else if (action === 'removeGem') {
-            removeGemFromSettings(supabase, currentRoomId, currentRoomData, gemName);
-        }
-    } else if (currentRoomData && !isHost && (action === 'incrementGem' || action === 'decrementGem' || action === 'removeGem' || action === 'removeGem')) {
-        // Inform non-hosts that they cannot edit this section
-        showMessage("Only the host can edit gem settings.", 'error');
-    } else if (!currentRoomData) {
-        console.warn("[WARN] Gem control clicked but currentRoomData is not available.");
-        showMessage("Room data not loaded yet. Please wait.", 'info');
-    }
-});
-
-addGemButton.addEventListener('click', () => {
-    console.log("[DEBUG] Add Gem button clicked. IsHost:", isHost);
-    // Only allow host to open add gem modal
-    if (currentRoomData && isHost) {
-        uiShowAddGemModal(currentRoomData, (gemName) => serviceAddGemToSettings(supabase, currentRoomId, currentRoomData, gemName));
-    } else if (currentRoomData && !isHost) {
-        showMessage("Only the host can add new gem categories.", 'error');
     } else {
-        console.warn("[WARN] Add Gem button clicked but currentRoomData is not available.");
-        showMessage("Room data not loaded yet. Please wait.", 'info');
+        showMessage('Only the host can rename the room.', 'error');
     }
-});
-cancelAddGemBtn.addEventListener('click', hideAddGemModal);
-addGemModal.addEventListener('click', (event) => {
-    if (event.target === addGemModal) {
-        hideAddGemModal();
-    }
-});
+}
 
-startGameBtn.addEventListener('click', () => {
-    console.log("[DEBUG] Start Game button clicked. IsHost:", isHost);
-    startGame(supabase, currentRoomId, isHost, currentRoomData);
-});
-
-viewAllRolesBtn.addEventListener('click', () => uiShowRolesOverlay(currentRoomData, renderAllRoleCardsToOverlay));
-rolesOverlayCloseBtn.addEventListener('click', hideRolesOverlay);
-detailedOverlayCloseBtn.addEventListener('click', hideDetailedRoleOverlay);
-
-rolesOverlay.addEventListener('click', (event) => {
-    if (event.target === rolesOverlay) {
-        hideRolesOverlay();
-    }
-});
-
-detailedRoleOverlay.addEventListener('click', (event) => {
-    if (event.target === detailedOverlay) {
-        hideDetailedRoleOverlay();
-    }
-});
-
-// Role Pool Tab functionality
-rolePoolTabKnob.addEventListener('click', toggleRolePoolTabVisibility);
-rolePoolTabCloseBtn.addEventListener('click', toggleRolePoolTabVisibility);
-
-// Drag functionality for the Role Pool tab
-let rolePoolStartX = 0;
-let rolePoolInitialLeft = 0;
-let isRolePoolDragging = false; // Local state for dragging
-
-rolePoolTab.addEventListener('mousedown', (e) => {
-    isRolePoolDragging = true;
-    rolePoolStartX = e.clientX;
-    rolePoolInitialLeft = rolePoolTab.getBoundingClientRect().left;
-    rolePoolTab.style.transition = 'none';
-    document.body.style.userSelect = 'none';
-});
-
-document.addEventListener('mousemove', (e) => {
-    if (!isRolePoolDragging) return;
-
-    const dx = e.clientX - rolePoolStartX;
-    let newLeft = rolePoolInitialLeft + dx;
-
-    const maxHiddenLeft = -rolePoolTab.offsetWidth;
-    newLeft = Math.min(0, Math.max(maxHiddenLeft, newLeft));
-
-    rolePoolTab.style.transform = `translateX(${newLeft}px)`;
-});
-
-document.addEventListener('mouseup', () => {
-    if (!isRolePoolDragging) return;
-    isRolePoolDragging = false;
-    rolePoolTab.style.transition = 'transform 0.5s ease-in-out';
-
-    const currentLeft = rolePoolTab.getBoundingClientRect().left;
-    const threshold = -rolePoolTab.offsetWidth / 2;
-
-    if (currentLeft > threshold) {
-        rolePoolTab.classList.add('active');
-        // isRolePoolTabOpen is managed by toggleRolePoolTabVisibility, no need to set here
-        rolePoolTab.style.transform = 'translateX(0)';
-    } else {
-        rolePoolTab.classList.remove('active');
-        // isRolePoolTabOpen is managed by toggleRolePoolTabVisibility, no need to set here
-        rolePoolTab.style.transform = 'translateX(-100%)';
-    }
-    document.body.style.userSelect = '';
-});
-
-// Touch events for Role Pool tab
-rolePoolTab.addEventListener('touchstart', (e) => {
-    isRolePoolDragging = true;
-    rolePoolStartX = e.touches[0].clientX;
-    rolePoolInitialLeft = rolePoolTab.getBoundingClientRect().left;
-    rolePoolTab.style.transition = 'none';
-    document.body.style.userSelect = 'none';
-});
-
-document.addEventListener('touchmove', (e) => {
-    if (!isRolePoolDragging) return;
-    const dx = e.touches[0].clientX - rolePoolStartX;
-    const maxHiddenLeft = -rolePoolTab.offsetWidth;
-    let newLeft = rolePoolInitialLeft + dx;
-    newLeft = Math.min(0, Math.max(maxHiddenLeft, newLeft));
-    rolePoolTab.style.transform = `translateX(${newLeft}px)`;
-});
-
-document.addEventListener('touchend', () => {
-    if (!isRolePoolDragging) return;
-    isRolePoolDragging = false;
-    rolePoolTab.style.transition = 'transform 0.5s ease-in-out';
-
-    const currentLeft = rolePoolTab.getBoundingClientRect().left;
-    const threshold = -rolePoolTab.offsetWidth / 2;
-
-    if (currentLeft > threshold) {
-        rolePoolTab.classList.add('active');
-        rolePoolTab.style.transform = 'translateX(0)';
-    } else {
-        rolePoolTab.classList.remove('active');
-        rolePoolTab.style.transform = 'translateX(-100%)';
-    }
-    document.body.style.userSelect = '';
-});
-
-// Player Role Card System Event Listener
-myRoleTriggerArea.addEventListener('click', togglePlayerCardsSpread);
-window.addEventListener('resize', updatePlayerCardPositions);
-
-// --- Online Status Detection (beforeunload) ---
-window.addEventListener('beforeunload', async (event) => {
-    console.log('[DEBUG] [beforeunload] Page is about to unload. Attempting to leave room...');
-    if (currentRoomId && userId && supabase) {
+async function handleConfirmRenameRoom() {
+    const newName = document.getElementById('renameRoomInput').value.trim();
+    if (newName && currentRoomId) {
         try {
-            supabase.rpc('remove_player_from_room', {
-                p_room_id: currentRoomId,
-                p_player_id: userId
-            });
-            console.log('[DEBUG] [beforeunload] Sent leave room request.');
+            await serviceConfirmRenameRoom(supabase, currentRoomId, newName);
+            uiHideRenameRoomModal();
+            showMessage('Room renamed successfully!', 'success');
         } catch (error) {
-            console.error('[ERROR] [beforeunload] Error sending leave room request:', error);
+            console.error("[ERROR] Error confirming room rename:", error);
+            showMessage(`Error renaming room: ${error.message}`, 'error');
         }
+    } else {
+        showMessage('Please enter a valid new room name.', 'error');
     }
-});
-// ----------------------------------------------
+}
+
+async function handleAddGem() {
+    if (currentRoomId && currentRoomData && currentRoomData.host_id === localId) {
+        // Filter out gems already in role_settings
+        const existingGemNames = new Set(currentRoomData.game_data?.role_settings.map(s => s.gem) || []);
+        const availableGems = Object.keys(GEM_DATA).filter(gemName => !existingGemNames.has(gemName));
+
+        uiShowAddGemModal(availableGems, GEM_DATA, async (gemName) => {
+            try {
+                // Find a role template that belongs to this gem
+                const roleToAdd = ROLE_TEMPLATES.find(role => role.gem === gemName);
+                if (!roleToAdd) {
+                    showMessage(`No default role found for gem category: ${gemName}`, 'error');
+                    return false;
+                }
+                const success = await serviceAddGemToSettings(supabase, currentRoomId, roleToAdd.name);
+                if (success) {
+                    showMessage(`Added ${gemName} category with ${roleToAdd.name}.`, 'success');
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error("[ERROR] Error adding gem to settings:", error);
+                showMessage(`Error adding gem: ${error.message}`, 'error');
+                return false;
+            }
+        });
+    } else {
+        showMessage('Only the host can add role categories.', 'error');
+    }
+}
+
+async function handleStartGame() {
+    if (currentRoomId && currentRoomData && currentRoomData.host_id === localId) {
+        await startGame(supabase, currentRoomId, currentRoomData);
+    } else {
+        showMessage('Only the host can start the game.', 'error');
+    }
+}
+
+// --- Supabase Realtime Subscription ---
+async function subscribeToRoomChanges(roomId) {
+    if (roomChannel) {
+        await roomChannel.unsubscribe();
+        supabase.removeChannel(roomChannel);
+        console.log(`[DEBUG] Unsubscribed from previous channel: ${roomId}`);
+    }
+
+    roomChannel = supabase
+        .channel(`room:${roomId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'Rooms', filter: `id=eq.${roomId}` }, payload => {
+            console.log('[DEBUG] Change received!', payload);
+            if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+                currentRoomData = payload.new;
+                // Get player's roles from the updated room data
+                const currentPlayer = currentRoomData.players.find(p => p.player_id === userId);
+                const currentPlayerRoles = currentPlayer ? currentPlayer.roles : [];
+
+                updateRoomUI(
+                    currentRoomData,
+                    localId,
+                    userId,
+                    (roomId, playerId) => kickPlayer(supabase, roomId, playerId),
+                    currentPlayerRoles,
+                    renderPlayerRoleCards, // Pass the rendering function
+                    updateRoleAmount, // Pass updateRoleAmount to render
+                    toggleRoleDisabled, // Pass toggleRoleDisabled
+                    removeGemFromSettings // Pass removeGemFromSettings
+                );
+            } else if (payload.eventType === 'DELETE') {
+                showMessage('The room was deleted by the host.', 'info');
+                handleLeaveRoom(); // Automatically leave if room is deleted
+            }
+        })
+        .subscribe();
+
+    console.log(`[DEBUG] Subscribed to room ${roomId}`);
+
+    // Fetch initial data immediately after subscribing
+    try {
+        const data = await fetchRoomData(supabase, roomId);
+        if (data) {
+            currentRoomData = data;
+            const currentPlayer = currentRoomData.players.find(p => p.player_id === userId);
+            const currentPlayerRoles = currentPlayer ? currentPlayer.roles : [];
+            updateRoomUI(
+                currentRoomData,
+                localId,
+                userId,
+                (roomId, playerId) => kickPlayer(supabase, roomId, playerId),
+                currentPlayerRoles,
+                renderPlayerRoleCards,
+                updateRoleAmount,
+                toggleRoleDisabled,
+                removeGemFromSettings
+            );
+        } else {
+            showMessage('Room not found or inaccessible.', 'error');
+            handleLeaveRoom();
+        }
+    } catch (error) {
+        console.error("[ERROR] Error fetching initial room data:", error);
+        showMessage(`Error fetching room data: ${error.message}`, 'error');
+        handleLeaveRoom();
+    }
+}
+
+// --- Event Listener Setup ---
+function setupEventListeners() {
+    setPlayerNameBtn.addEventListener('click', handleSetPlayerName);
+    createRoomBtn.addEventListener('click', handleCreateRoom);
+    joinRoomBtn.addEventListener('click', handleJoinRoom);
+    leaveRoomBtn.addEventListener('click', handleLeaveRoom);
+    incrementCounterBtn.addEventListener('click', handleIncrementCounter);
+    generateRandomBtn.addEventListener('click', handleGenerateRandom);
+    renameRoomTitleBtn.addEventListener('click', handleRenameRoomTitle);
+    confirmRenameBtn.addEventListener('click', handleConfirmRenameRoom);
+    cancelRenameBtn.addEventListener('click', uiHideRenameRoomModal); // Use modal's hide function directly
+    viewAllRolesBtn.addEventListener('click', () => uiShowRolesOverlay(currentRoomData, renderAllRoleCardsToOverlay));
+    rolesOverlayCloseBtn.addEventListener('click', uiHideRolesOverlay);
+    detailedOverlayCloseBtn.addEventListener('click', uiHideDetailedRoleOverlay);
+    addGemButton.addEventListener('click', handleAddGem);
+    cancelAddGemBtn.addEventListener('click', uiHideAddGemModal);
+    startGameBtn.addEventListener('click', handleStartGame);
+
+    // Tab switching
+    createRoomTabBtn.addEventListener('click', () => showTab('create-room'));
+    joinRoomTabBtn.addEventListener('click', () => showTab('join-room'));
+
+    // Role Pool Tab Drag functionality
+    let isDragging = false;
+    let startX;
+    let initialLeft;
+
+    rolePoolTabKnob.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startX = e.clientX;
+        initialLeft = rolePoolTab.getBoundingClientRect().left;
+        rolePoolTab.style.transition = 'none'; // Disable transition during drag
+        document.body.style.userSelect = 'none'; // Prevent text selection during drag
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        // Restrict movement to within the tab's width to the left
+        const newLeft = Math.min(0, initialLeft + dx);
+        rolePoolTab.style.transform = `translateX(${newLeft}px)`;
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!isDragging) return;
+        isDragging = false;
+        rolePoolTab.style.transition = 'transform 0.5s ease-in-out';
+
+        const currentLeft = rolePoolTab.getBoundingClientRect().left;
+        const threshold = -rolePoolTab.offsetWidth / 2;
+
+        if (currentLeft > threshold) {
+            rolePoolTab.classList.add('active');
+            rolePoolTab.style.transform = 'translateX(0)';
+        } else {
+            rolePoolTab.classList.remove('active');
+            rolePoolTab.style.transform = 'translateX(-100%)';
+        }
+        document.body.style.userSelect = '';
+    });
+
+    // Player Role Card System Event Listener
+    myRoleTriggerArea.addEventListener('click', togglePlayerCardsSpread);
+    window.addEventListener('resize', updatePlayerCardPositions);
+
+    // --- Online Status Detection (beforeunload) ---
+    window.addEventListener('beforeunload', async (event) => {
+        console.log('[DEBUG] [beforeunload] Page is about to unload. Attempting to leave room...');
+        if (currentRoomId && userId && supabase) {
+            try {
+                // This RPC call is a fire-and-forget, as beforeunload is not guaranteed to complete async operations
+                supabase.rpc('remove_player_from_room', {
+                    p_room_id: currentRoomId,
+                    p_player_id: userId
+                }).then(() => {
+                    console.log('[DEBUG] [beforeunload] Sent leave room request successfully.');
+                }).catch(error => {
+                    console.error('[ERROR] [beforeunload] Error sending leave room request:', error);
+                });
+            } catch (error) {
+                console.error('[ERROR] [beforeunload] Error preparing leave room request:', error);
+            }
+        }
+    });
+    // ----------------------------------------------
+}
 
 // Initialize the application when the window loads
 window.onload = initializeApp;
