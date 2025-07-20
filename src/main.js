@@ -18,7 +18,7 @@ import {
     fetchRoomData, createRoom, joinRoom, leaveRoom, kickPlayer,
     renameRoomTitle, confirmRenameRoom as serviceConfirmRenameRoom,
     incrementCounter, generateRandomValue, updateGameDataInDB,
-    updateRoleAmount, toggleRoleDisabled, updateGemCount,
+    updateRoleAmount, toggleRoleDisabled, updateGemCount, // These now expect supabase, roomId, roomData
     removeGemFromSettings, addGemToSettings as serviceAddGemToSettings, startGame
 } from './services/room-service.js';
 import {
@@ -219,7 +219,8 @@ async function handleLeaveRoom() {
 
 async function handleIncrementCounter() {
     if (currentRoomId && currentRoomData) {
-        await incrementCounter(supabase, currentRoomId, currentRoomData.game_data?.shared_counter || 0);
+        // Pass all required arguments to incrementCounter
+        await incrementCounter(supabase, currentRoomId, currentRoomData.game_data?.shared_counter || 0, currentRoomData);
     } else {
         showMessage('Please join a room first.', 'error');
     }
@@ -227,7 +228,8 @@ async function handleIncrementCounter() {
 
 async function handleGenerateRandom() {
     if (currentRoomId && currentRoomData) {
-        await generateRandomValue(supabase, currentRoomId);
+        // Pass all required arguments to generateRandomValue
+        await generateRandomValue(supabase, currentRoomId, currentRoomData);
     } else {
         showMessage('Please join a room first.', 'error');
     }
@@ -272,7 +274,8 @@ async function handleAddGem() {
                     showMessage(`No default role found for gem category: ${gemName}`, 'error');
                     return false;
                 }
-                const success = await serviceAddGemToSettings(supabase, currentRoomId, roleToAdd.name);
+                // Pass all required arguments to serviceAddGemToSettings
+                const success = await serviceAddGemToSettings(supabase, currentRoomId, currentRoomData, roleToAdd.name);
                 if (success) {
                     showMessage(`Added ${gemName} category with ${roleToAdd.name}.`, 'success');
                     return true;
@@ -322,9 +325,10 @@ async function subscribeToRoomChanges(roomId) {
                     (roomId, playerId) => kickPlayer(supabase, roomId, playerId),
                     currentPlayerRoles,
                     renderPlayerRoleCards, // Pass the rendering function
-                    updateRoleAmount, // Pass updateRoleAmount to render
-                    toggleRoleDisabled, // Pass toggleRoleDisabled
-                    removeGemFromSettings // Pass removeGemFromSettings
+                    // Wrap callbacks to pass required arguments
+                    (roleName, change) => updateRoleAmount(supabase, currentRoomId, currentRoomData, roleName, change),
+                    (roleName) => toggleRoleDisabled(supabase, currentRoomId, currentRoomData, roleName),
+                    (roleName) => removeGemFromSettings(supabase, currentRoomId, currentRoomData, roleName)
                 );
             } else if (payload.eventType === 'DELETE') {
                 showMessage('The room was deleted by the host.', 'info');
@@ -349,9 +353,10 @@ async function subscribeToRoomChanges(roomId) {
                 (roomId, playerId) => kickPlayer(supabase, roomId, playerId),
                 currentPlayerRoles,
                 renderPlayerRoleCards,
-                updateRoleAmount,
-                toggleRoleDisabled,
-                removeGemFromSettings
+                // Wrap callbacks to pass required arguments
+                (roleName, change) => updateRoleAmount(supabase, currentRoomId, currentRoomData, roleName, change),
+                (roleName) => toggleRoleDisabled(supabase, currentRoomId, currentRoomData, roleName),
+                (roleName) => removeGemFromSettings(supabase, currentRoomId, currentRoomData, roleName)
             );
         } else {
             showMessage('Room not found or inaccessible.', 'error');
