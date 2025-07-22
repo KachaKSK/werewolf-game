@@ -14,9 +14,6 @@ import { GEM_DATA, ROLE_TEMPLATES } from '../config/constants.js';
 import { getBase64Image, hexToRgba, getRoleImagePath, getRoleTemplate } from '../utils/helpers.js';
 import { showDetailedRoleOverlay } from './modals.js'; // Import showDetailedRoleOverlay
 
-// Debugging: Check if ROLE_TEMPLATES is defined at module load time
-console.log('[DEBUG] render.js loaded. ROLE_TEMPLATES at module top level:', ROLE_TEMPLATES);
-
 let arePlayerCardsSpread = false; // State for card spread/pile
 let isRolePoolTabOpen = false; // State for role pool tab
 
@@ -27,7 +24,7 @@ let isRolePoolTabOpen = false; // State for role pool tab
  * @param {string} userId - The short ID of the current user.
  * @param {function} kickPlayerCallback - Callback function for kicking players.
  * @param {Array<Object>} currentPlayerRoles - Array of current player's roles.
- * @param {function} renderPlayerRoleCardsCallback - Callbac...
+ * @param {function} renderPlayerRoleCardsCallback - Callback to render player roles.
  */
 export function updateRoomUI(roomData, localId, userId, kickPlayerCallback, currentPlayerRoles, renderPlayerRoleCardsCallback) {
     console.log('[DEBUG] [updateRoomUI] Received roomData:', roomData);
@@ -228,18 +225,8 @@ export async function displayRoleImageStatic(imgElement, role, currentRoomData, 
  */
 export function renderRoleList(currentRoleSettings, isHost, currentRoomData) {
     console.log('[DEBUG] [renderRoleList] Starting role list rendering.');
-    console.log('[DEBUG] [renderRoleList] ROLE_TEMPLATES inside function:', ROLE_TEMPLATES); // Add this line for debugging
     roleListDiv.innerHTML = '';
     console.log('[DEBUG] [renderRoleList] Cleared roleListDiv content.');
-
-    if (!ROLE_TEMPLATES || ROLE_TEMPLATES.length === 0) {
-        console.error("[ERROR] ROLE_TEMPLATES is undefined or empty in renderRoleList. Cannot render roles.");
-        const errorMessage = document.createElement('div');
-        errorMessage.textContent = 'Error: Role templates not loaded. Please refresh the page.';
-        errorMessage.className = 'text-center text-red-500 p-4';
-        roleListDiv.appendChild(errorMessage);
-        return;
-    }
 
     ROLE_TEMPLATES.forEach(role => {
         const roleSetting = currentRoleSettings.find(s => s.role === role.name) || {
@@ -355,15 +342,6 @@ export function renderAllRoleCardsToOverlay(currentRoomData) {
     console.log('[DEBUG] [renderAllRoleCardsToOverlay] Starting overlay role card rendering.');
     rolesGridContainerOverlay.innerHTML = '';
     console.log('[DEBUG] [renderAllRoleCardsToOverlay] Cleared rolesGridContainerOverlay content.');
-
-    if (!ROLE_TEMPLATES || ROLE_TEMPLATES.length === 0) {
-        console.error("[ERROR] ROLE_TEMPLATES is undefined or empty in renderAllRoleCardsToOverlay. Cannot render overlay roles.");
-        const errorMessage = document.createElement('div');
-        errorMessage.textContent = 'Error: Role templates not loaded for overlay. Please refresh the page.';
-        errorMessage.className = 'text-center text-red-500 p-4';
-        rolesGridContainerOverlay.appendChild(errorMessage);
-        return;
-    }
 
     ROLE_TEMPLATES.forEach(role => {
         const card = document.createElement('div');
